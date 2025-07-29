@@ -2,6 +2,9 @@ import yaml
 import trimesh
 import numpy as np
 from pathlib import Path
+import uuid
+import os
+
 
 # print(trimesh.__version__)
 
@@ -17,13 +20,33 @@ def load_scene(map_path: Path) -> trimesh.Scene:
         return trimesh.Scene(mesh)
     return trimesh.Scene()
 
-def create_single_model(aug: dict) -> trimesh.Trimesh:
+def create_model(bounds,base_mesh, aug: dict) -> trimesh.Trimesh:
     
     if aug['model'] == 'cube':
         scale = aug.get('scale', 5.0)
-        cube = trimesh.creation.box(extents=scale * np.ones(3))
-        cube.apply_translation(aug['position'])
-        return cube
+        count = aug.get('count', 1)
+        position = aug.get('position', 'random')
+        cubes = []
+
+        for i in range(0, count):
+            cube = trimesh.creation.box(extents=scale * np.ones(3))
+            cube.visual.face_colors = [255, 0, 0, 255]  # Red color
+
+            try:
+                if (aug['position'] == "random"):
+                    x,y,z = create_random_xyz(bounds)
+                    conf_y = control_random_creation(x,y,z, base_mesh)
+                    final_y = conf_y + (scale / 2)
+                    cube.apply_translation([x, final_y, z])
+                else:
+                    cube.apply_translation(position * np.ones(3))
+            except:
+                print("Please provide a valid position [x,y,z] or 'random'.")
+
+            cubes.append(cube)
+
+        return cubes
+    
     raise ValueError(f"Unknown model type: {aug['model']}")
 
 
@@ -68,18 +91,19 @@ def visualize_ray(scene, origin, direction, length=10.0, hit_points=None):
             scene.add_geometry(sphere)
 
 
-def control_multi_creation(x, y, z, mesh_for_query, scene):
+def control_random_creation(x, y, z, mesh_for_query):
     offset = 0.01
-    if y < 0:
-        ray_direction = np.array([0, 1, 0])  # Make it 1D, not 2D
-        ray_origin = np.array([x, y - offset, z])  # Convert to numpy array
+    sceneCenter = 0
+    if y < sceneCenter:
+        ray_direction = np.array([0, 1, 0])  # Work in y axis 
+        ray_origin = np.array([x, y - offset, z])  
     else:
-        ray_direction = np.array([0, -1, 0])   # Make it 1D, not 2D
-        ray_origin = np.array([x, y + offset, z])  # Convert to numpy array
+        ray_direction = np.array([0, -1, 0])   
+        ray_origin = np.array([x, y + offset, z])  
 
     locations, index_ray, index_tri = mesh_for_query.ray.intersects_location(
         ray_origins=[ray_origin],
-        ray_directions=[ray_direction]  # Wrap in list for the API
+        ray_directions=[ray_direction]  
     )
 
     # visualize_ray(scene, ray_origin, ray_direction, length=20.0, hit_points=locations)
@@ -100,58 +124,35 @@ def control_multi_creation(x, y, z, mesh_for_query, scene):
         return closest_point[0][1]
     
 
+def create_random_xyz(map_bounds):
+    x = np.random.uniform(map_bounds[0][0], map_bounds[1][0])
+    y = np.random.uniform(map_bounds[0][1], map_bounds[1][1])
+    z = np.random.uniform(map_bounds[0][2], map_bounds[1][2])
+    return x,y,z
+
+
+
 def apply_augmentations(scene: trimesh.Scene, augmentations: list):
     map_bounds = scene.bounds
+    map_count = config.get('map_count', 1)  # Get map_count from top level
+
+    if ((os.path.exists) == False):
+        os.mkdir('maps')
     base_mesh = trimesh.util.concatenate(scene.dump())  # only terrain models here
-
-    for aug in augmentations:
-        if aug['type'] == 'add_single_model':
-            model = create_single_model(aug)
-            scene.add_geometry(model)
-
-        elif aug['type'] == 'add_multi_model':
-            model_type = aug['model']
-            count = aug['count']
-            scale = aug.get('scale', 1.0)
-
-            for _ in range(count):
-                x = np.random.uniform(map_bounds[0][0], map_bounds[1][0])
-                y = np.random.uniform(map_bounds[0][1], map_bounds[1][1])
-                z = np.random.uniform(map_bounds[0][2], map_bounds[1][2])
-
-                conf_y = control_multi_creation(x, y, z, base_mesh, scene)
-
-                cube = trimesh.creation.box(extents=scale * np.ones(3))
-                
-                # Use conf_y as the ground Y position, then offset by half the cube height
-                # so the cube sits ON the ground rather than half-buried in it
-                cube_height = scale  
-                final_y = conf_y + (cube_height / 2)
-                
-                cube.apply_translation([x, final_y, z])
-                print(f"Drawing cube to: {x},{final_y},{z}")
-                scene.add_geometry(cube)
-
+    for i in range(map_count):
+        scene_copy = scene.copy()  # Create a copy for each map
+        for aug in augmentations:
+            if aug['type'] == 'add_model':
+                models = create_model(map_bounds, base_mesh, aug)
+                for model in models:
+                    scene_copy.add_geometry(model)
+        
+        filename = f"./maps/map_{uuid.uuid4()}.obj"
+        export_scene(scene_copy, filename)
+        
 def export_scene(scene: trimesh.Scene, output_path: str):
     scene.export(output_path)
 
-# # === Main ===
-# yaml_content = """
-# map: map.obj
-# augmentations:
-#   - type: add_single_model
-#     model: cube
-#     position: [1.5, 2.0, 50.0]
-#     scale: 5.0
-#   - type: add_single_model
-#     model: cube
-#     position: [25.0, 3.0, 0.0]
-#     scale: 5.0
-#   - type: add_multi_model
-#     model: cube
-#     count: 30
-#     scale: 5.0
-# """
 
 if __name__ == "__main__":
     path = "./setup.yaml"
@@ -159,4 +160,4 @@ if __name__ == "__main__":
     scene = load_scene(Path(config['map']))
     apply_augmentations(scene, config.get('augmentations', []))
 
-    export_scene(scene, "updated_map.obj")
+    # export_scene(scene, "updated_map.obj")

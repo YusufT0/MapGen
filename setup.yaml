@@ -1,14 +1,35 @@
+# map: map.obj
+# augmentations:
+#   - type: add_model
+#     model: cube
+#     scale: 5.0
+#     position: random
+#     count: 1
+#     map_count: 10
+#   - type: add_model
+#     model: cube
+#     scale: 5.0
+#     position: [1.5, 2.0, 50.0]
+#     count: 1
+#     map_count: 1
+#   - type: add_model
+#     model: cube
+#     scale: 5.0
+#     position: random
+#     count: 10
+#     map_count: 5
+  
 map: map.obj
+map_count: 2
 augmentations:
-  - type: add_single_model
-    model: cube
-    position: [1.5, 2.0, 50.0]
-    scale: 5.0
-  - type: add_single_model
-    model: cube
-    position: [25.0, 3.0, 0.0]
-    scale: 5.0
-  - type: add_multi_model
-    model: cube
-    count: 30
-    scale: 5.0
+    - type: add_model
+      model: cube
+      scale: 5.0
+      position: random
+      count: 4
+    - type: add_model
+      model: cube
+      scale: 5.0
+      position: [10, 50, 0]
+      count: 1 
+
