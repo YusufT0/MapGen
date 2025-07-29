@@ -1,2 +1,2 @@
 # MapGen
-A tool for users to augment various kinds of maps for Gazebo using Unity.
+An augmentation tool for users to augment various kinds of maps using a simple config file.
