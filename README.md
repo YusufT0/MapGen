@@ -6,9 +6,7 @@ yaml structure:
 
 map: filename of your .obj file
 map_count: how many augmentations you want.
-
 augmentations:
-
     - type: type of augmentation
       model: type of model
       scale: scale of model
