@@ -2,7 +2,7 @@
 An augmentation tool for users to augment various kinds of maps using a simple config file.
 
 
-yaml structure:</br>
+yaml structure:</br></br>
 map: filename of your .obj file</br>
 map_count: how many augmentations you want.</br>
 augmentations:</br>
