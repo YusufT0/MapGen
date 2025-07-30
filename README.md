@@ -12,5 +12,5 @@ augmentations:</br>
       model: type of model</br>
       scale: scale of model</br>
       position: position of model</br>
-      count: count of model
+      count: count of model </br>
       color: color of the model
