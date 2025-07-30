@@ -5,6 +5,8 @@ An augmentation tool for users to augment various kinds of maps using a simple c
 yaml structure:</br></br>
 map: filename of your .obj file</br>
 map_count: how many augmentations you want.</br>
+output_type: file type of the maps. </br>
+
 augmentations:</br>
     - type: type of augmentation</br>
       model: type of model</br>
