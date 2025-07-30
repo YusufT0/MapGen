@@ -14,7 +14,7 @@ def create_model(bounds, base_mesh, aug: dict) -> trimesh.Trimesh:
     def custom_loading():
         mesh = trimesh.load(aug.get('custom_path'))
         mesh.apply_scale(aug['scale'])
-        mesh.visual.material = mesh.visual.material  
+        
         return mesh
 
 

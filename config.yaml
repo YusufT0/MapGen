@@ -17,6 +17,6 @@ augmentations:
   - type: add_model
     model: custom
     custom_path: "./Lowpoly_tree_sample.obj"
-    scale: 0.5
-    count: 3
+    scale: 0.2
+    count: 20
     position: random
