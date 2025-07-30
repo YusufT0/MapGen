@@ -1,17 +1,22 @@
 map: map.obj
-map_count: 5
+map_count: 3
 output_type: glb
 augmentations:
+  # - type: add_model
+  #   model: cone
+  #   scale: 5.0
+  #   count: 10
+  #   position: random
+  #   color: [0, 255, 0, 255]  # Green cubes
+  # - type: add_model
+  #   model: cylinder
+  #   scale: 5.0
+  #   count: 10
+  #   position: random
+  #   color: [0, 0, 255, 255]  # Blue cubes
   - type: add_model
-    model: cone
-    scale: 5.0
-    count: 10
+    model: custom
+    custom_path: "./Lowpoly_tree_sample.obj"
+    scale: 0.5
+    count: 3
     position: random
-    color: [0, 255, 0, 255]  # Green cubes
-  - type: add_model
-    model: cylinder
-    scale: 5.0
-    count: 10
-    position: random
-    color: [0, 0, 255, 255]  # Blue cubes
-
