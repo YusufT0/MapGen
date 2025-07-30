@@ -1,35 +1,17 @@
-# map: map.obj
-# augmentations:
-#   - type: add_model
-#     model: cube
-#     scale: 5.0
-#     position: random
-#     count: 1
-#     map_count: 10
-#   - type: add_model
-#     model: cube
-#     scale: 5.0
-#     position: [1.5, 2.0, 50.0]
-#     count: 1
-#     map_count: 1
-#   - type: add_model
-#     model: cube
-#     scale: 5.0
-#     position: random
-#     count: 10
-#     map_count: 5
-  
 map: map.obj
-map_count: 2
+map_count: 5
+output_type: glb
 augmentations:
-    - type: add_model
-      model: cube
-      scale: 5.0
-      position: random
-      count: 4
-    - type: add_model
-      model: cube
-      scale: 5.0
-      position: [10, 50, 0]
-      count: 1 
+  - type: add_model
+    model: cone
+    scale: 5.0
+    count: 10
+    position: random
+    color: [0, 255, 0, 255]  # Green cubes
+  - type: add_model
+    model: cylinder
+    scale: 5.0
+    count: 10
+    position: random
+    color: [0, 0, 255, 255]  # Blue cubes
 
