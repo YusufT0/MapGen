@@ -33,7 +33,7 @@ def build_map_config(map_name: str, filetype: str, config, map_bounds, base_mesh
     return map_config
 
 
-
+ 
 @app.post("/create_configs")
 async def create_configs(data: ConfigInput):
     scene = load_scene(data.obj_path)

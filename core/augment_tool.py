@@ -1,111 +1,134 @@
+from abc import ABC, abstractmethod
 import numpy as np
 import math
 import trimesh
-import yaml
 from schemas.domain import ModelObject
 
-def augment(bounds, aug, base_mesh):
-    if aug.type == "add_model":
-        add_configs = create_adding_config(bounds, aug, base_mesh)
-    else:
-        landscape_configs = create_landscape_config()
-
-    return add_configs
 
 
-# TODO add landscape logic to here.
-def create_landscape_config():
-    return []
+
+class AugmenterRegistry:
+    _registry = {}
+
+    @classmethod
+    def register(cls, type_name):
+        def wrapper(klass):
+            cls._registry[type_name] = klass
+            return klass
+        return wrapper
+
+    @classmethod
+    def get(cls, type_name):
+        return cls._registry.get(type_name)
 
 
-# The function that is going to be called. Sums every function up.
-def create_adding_config(bounds, aug, base_mesh):
-    save_inf = []
-    for i in range(aug.count):
-        if aug.position == "random":
-            trigger = True
-            while trigger:
-                x, y, z = create_random_xyz(bounds)
-                conf_y = control_random_creation(x, y, z, base_mesh)
-                final_y = conf_y + aug.scale / 2
-                updated_coords = [x, final_y, z]
-                trigger = control_collision(updated_coords, save_inf, aug.scale)
-        else:
-            updated_coords = aug.position
-        save_inf.append(
+# Base Class
+class Augmenter(ABC):
+    def __init__(self, bounds, base_mesh):
+        self.bounds = bounds
+        self.base_mesh = base_mesh
+
+    @abstractmethod
+    def generate(self, aug):
+        pass
+
+
+
+@AugmenterRegistry.register("add_model")
+class ModelAdder(Augmenter):
+    def generate(self, aug):
+        results = []
+        for _ in range(aug.count):
+            if aug.position == "random":
+                pos = self._find_valid_position(aug.scale, results)
+            else:
+                pos = aug.position
+
+            results.append(
                 ModelObject(
                     model=aug.model,
-                    position=updated_coords,
+                    position=pos,
                     scale=aug.scale
                 )
             )
+        return results
+    # Create random positions, Control if that random positions attached to the ground, then control if that random positions collide with other objects.
+    def _find_valid_position(self, scale, placed):
+        while True:
+            x, y, z = create_random_xyz(self.bounds)
+            y_fixed = control_random_creation(x, y, z, self.base_mesh) + scale / 2
+            new_pos = [x, y_fixed, z]
+            if not control_collision(new_pos, placed, scale):
+                return new_pos
+            
+#TODO: Add landscape module.
+@AugmenterRegistry.register("landscape")
+class LandScape(Augmenter):
+    def generate(self, aug):
+        return []
 
-    
-    return save_inf
+# The function that is going to be called from outside.
+def augment(bounds, aug, base_mesh):
+    augmenter_class = AugmenterRegistry.get(aug.type)
+
+    if augmenter_class is None:
+        raise ValueError(f"Unknown augment type: {aug.type}")
+
+    augmenter = augmenter_class(bounds, base_mesh)
+    return augmenter.generate(aug)
 
 
-# Function to control if the new model that is going to be placed is colliding with other meshes.
+
+def create_random_xyz(map_bounds):
+    x = np.random.uniform(map_bounds[0][0], map_bounds[1][0])
+    y = np.random.uniform(map_bounds[0][1], map_bounds[1][1])
+    z = np.random.uniform(map_bounds[0][2], map_bounds[1][2])
+    return x, y, z
+
+
+
 def control_collision(new_pos, placed_objects, new_scale):
     for obj in placed_objects:
         old_pos = obj.position
         old_scale = obj.scale
-        
+
         dist = math.sqrt(
             (new_pos[0] - old_pos[0]) ** 2 +
             (new_pos[1] - old_pos[1]) ** 2 +
             (new_pos[2] - old_pos[2]) ** 2
         )
-        
-        min_dist = (new_scale + old_scale) / 2  
+
+        min_dist = (new_scale + old_scale) / 2
         if dist < min_dist:
-            return True  
-    
-    return False  
+            return True
 
+    return False
 
-
-# Random position creator.
-def create_random_xyz(map_bounds):
-    x = np.random.uniform(map_bounds[0][0], map_bounds[1][0])
-    y = np.random.uniform(map_bounds[0][1], map_bounds[1][1])
-    z = np.random.uniform(map_bounds[0][2], map_bounds[1][2])
-    return x,y,z
-
-
-# Controlling if the random position that is selected is on the map.
-# If it's not it fixes the relevant mesh to the nearest location on the map.
+# Check if the object that is going to be created will be on ground.
 def control_random_creation(x, y, z, mesh_for_query):
     offset = 0.01
-    sceneCenter = 0
-    if y < sceneCenter:
-        ray_direction = np.array([0, 1, 0])  # Work in y axis 
-        ray_origin = np.array([x, y - offset, z])  
-    else:
-        ray_direction = np.array([0, -1, 0])   
-        ray_origin = np.array([x, y + offset, z])  
+    scene_center = 0
 
-    locations, index_ray, index_tri = mesh_for_query.ray.intersects_location(
+    if y < scene_center:
+        ray_direction = np.array([0, 1, 0])
+        ray_origin = np.array([x, y - offset, z])
+    else:
+        ray_direction = np.array([0, -1, 0])
+        ray_origin = np.array([x, y + offset, z])
+
+    locations, _, _ = mesh_for_query.ray.intersects_location(
         ray_origins=[ray_origin],
-        ray_directions=[ray_direction]  
+        ray_directions=[ray_direction]
     )
 
-    # visualize_ray(scene, ray_origin, ray_direction, length=20.0, hit_points=locations)
-
-    # Check if we have any intersections at all
     if len(locations) > 0:
-        # Find the closest intersection point to the ray origin
         distances = np.linalg.norm(locations - ray_origin, axis=1)
         closest_idx = np.argmin(distances)
         closest_intersection = locations[closest_idx]
-        
-        # print(f"Ray hit the mesh at: {closest_intersection}")
-        return closest_intersection[1]  # Return Y coordinate of intersection
+        return closest_intersection[1]
     else:
-        # No intersections found, use nearest point on surface
-        closest_point, distance, face_id = mesh_for_query.nearest.on_surface([ray_origin])
-        # print(f"No ray intersection, using nearest surface point: {closest_point[0]}")
+        closest_point, _, _ = mesh_for_query.nearest.on_surface([ray_origin])
         return closest_point[0][1]
-
 
 
 #Just a helper function to see can we find the nearest point to the ground.
