@@ -1,6 +1,14 @@
-import yaml
-import json
+"""
+writer.py
 
+All of the file writing operations is going to be here.
+
+"""
+
+import yaml
 def write_config(map_name, map_config):
-    with open(f"./configs/{map_name}.yaml", "w") as f:
+    """
+    Writing generated augmentation configs.
+    """
+    with open(f"./configs/{map_name}.yaml", "w", encoding="utf-8") as f:
         yaml.dump(map_config.model_dump(),f, sort_keys=False)

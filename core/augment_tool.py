@@ -1,13 +1,21 @@
+"""
+augment_tool.py
+
+Contains augmentation logic for 3D map configuration files. Applies various transformation
+and model addition strategies using registered augmentation classes.
+
+"""
 from abc import ABC, abstractmethod
-import numpy as np
 import math
+import numpy as np
 import trimesh
 from schemas.domain import ModelObject
 
 
-
-
 class AugmenterRegistry:
+    """
+    A decorator class that is for creating augmentations.
+    """
     _registry = {}
 
     @classmethod
@@ -24,6 +32,10 @@ class AugmenterRegistry:
 
 # Base Class
 class Augmenter(ABC):
+    """
+    An abstract class for providing augmentation informations. 
+    All other augmentations is going to inherit from this one.
+    """
     def __init__(self, bounds, base_mesh):
         self.bounds = bounds
         self.base_mesh = base_mesh
@@ -36,7 +48,13 @@ class Augmenter(ABC):
 
 @AugmenterRegistry.register("add_model")
 class ModelAdder(Augmenter):
+    """
+    ModelAdder class is for adding models to the map.
+    """
     def generate(self, aug):
+        """
+        This function will take the augmentations and create a list of ModelObjects.
+        """
         results = []
         for _ in range(aug.count):
             if aug.position == "random":
@@ -52,23 +70,34 @@ class ModelAdder(Augmenter):
                 )
             )
         return results
-    # Create random positions, Control if that random positions attached to the ground, then control if that random positions collide with other objects.
     def _find_valid_position(self, scale, placed):
+        """
+        Create random positions, Control if that random positions attached to the ground.
+        If it is control if that random positions collide with other objects.  
+        """
+
         while True:
             x, y, z = create_random_xyz(self.bounds)
             y_fixed = control_random_creation(x, y, z, self.base_mesh) + scale / 2
             new_pos = [x, y_fixed, z]
-            if not control_collision(new_pos, placed, scale):
+            if not control_collision(new_pos, scale, placed):
                 return new_pos
-            
-#TODO: Add landscape module.
+#TODO: Add landscape module. # pylint: disable=fixme
 @AugmenterRegistry.register("landscape")
 class LandScape(Augmenter):
+    """
+    This class is going to contain all of the environment manipulations 
+    """
     def generate(self, aug):
         return []
+    def do_things(self):
+        pass
 
-# The function that is going to be called from outside.
 def augment(bounds, aug, base_mesh):
+    """
+    The function that is going to be called from outside.
+    All main functionalities will work here.
+    """
     augmenter_class = AugmenterRegistry.get(aug.type)
 
     if augmenter_class is None:
@@ -80,6 +109,9 @@ def augment(bounds, aug, base_mesh):
 
 
 def create_random_xyz(map_bounds):
+    """
+    Creates random locations
+    """
     x = np.random.uniform(map_bounds[0][0], map_bounds[1][0])
     y = np.random.uniform(map_bounds[0][1], map_bounds[1][1])
     z = np.random.uniform(map_bounds[0][2], map_bounds[1][2])
@@ -87,7 +119,10 @@ def create_random_xyz(map_bounds):
 
 
 
-def control_collision(new_pos, placed_objects, new_scale):
+def control_collision(new_pos, new_scale, placed_objects):
+    """
+    Check if the model that is going to be created is colliding.
+    """
     for obj in placed_objects:
         old_pos = obj.position
         old_scale = obj.scale
@@ -104,8 +139,10 @@ def control_collision(new_pos, placed_objects, new_scale):
 
     return False
 
-# Check if the object that is going to be created will be on ground.
 def control_random_creation(x, y, z, mesh_for_query):
+    """
+    Check if the object that is going to be created is on the ground.
+    """
     offset = 0.01
     scene_center = 0
 
@@ -126,23 +163,20 @@ def control_random_creation(x, y, z, mesh_for_query):
         closest_idx = np.argmin(distances)
         closest_intersection = locations[closest_idx]
         return closest_intersection[1]
-    else:
-        closest_point, _, _ = mesh_for_query.nearest.on_surface([ray_origin])
-        return closest_point[0][1]
+    closest_point, _, _ = mesh_for_query.nearest.on_surface([ray_origin])
+    return closest_point[0][1]
 
 
-#Just a helper function to see can we find the nearest point to the ground.
-#Just for visualization, there is nothing that is effecting the main logic.
 def visualize_ray(scene, origin, direction, length=10.0, hit_points=None):
-
+    """
+    Just a helper function to see can we find the nearest point to the ground.
+    Just for visualization, there is nothing that is effecting the main logic.
+    """
     origin = np.array(origin)
     direction = np.array(direction).flatten()  # Flatten in case it's 2D
-    
     end_point = origin + direction * length
     ray_length = np.linalg.norm(end_point - origin)
-    
     cylinder = trimesh.creation.cylinder(radius=0.02, height=ray_length)
-    
     z_axis = np.array([0, 0, 1])
     if not np.allclose(direction, z_axis):
         rotation_axis = np.cross(z_axis, direction)
@@ -151,17 +185,13 @@ def visualize_ray(scene, origin, direction, length=10.0, hit_points=None):
             angle = np.arccos(np.clip(np.dot(z_axis, direction), -1, 1))
             rotation_matrix = trimesh.transformations.rotation_matrix(angle, rotation_axis)
             cylinder.apply_transform(rotation_matrix)
-    
     # Translate to the midpoint of the ray
     midpoint = origin + direction * (ray_length / 2)
     cylinder.apply_translation(midpoint)
-    
     scene.add_geometry(cylinder)
-    
     # Add hit points as small spheres
     if hit_points is not None and len(hit_points) > 0:
         for pt in hit_points:
             sphere = trimesh.creation.uv_sphere(radius=0.1)
             sphere.apply_translation(pt)
-            
             scene.add_geometry(sphere)
