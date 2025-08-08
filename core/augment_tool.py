@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 import math
 import numpy as np
 import trimesh
-from schemas.domain import ModelObject
+from models.domain import CustomModelObject, StandardModelObject
 
 
 class AugmenterRegistry:
@@ -52,24 +52,32 @@ class ModelAdder(Augmenter):
     ModelAdder class is for adding models to the map.
     """
     def generate(self, aug):
-        """
-        This function will take the augmentations and create a list of ModelObjects.
-        """
         results = []
         for _ in range(aug.count):
-            if aug.position == "random":
-                pos = self._find_valid_position(aug.scale, results)
-            else:
-                pos = aug.position
-
-            results.append(
-                ModelObject(
-                    model=aug.model,
-                    position=pos,
-                    scale=aug.scale
-                )
-            )
+            pos = self._get_position(aug, results)
+            model_obj = self._create_model_object(aug, pos)
+            results.append(model_obj)
         return results
+
+    def _get_position(self, aug, results):
+        if aug.position == "random":
+            return self._find_valid_position(aug.scale, results)
+        return aug.position
+
+    def _create_model_object(self, aug, position):
+        base_data = {
+            'model': aug.model,
+            'position': position,
+            'scale': aug.scale
+        }
+        
+        if aug.model == "custom":
+            return CustomModelObject(model_path=aug.custom_path, **base_data)
+        else:
+            return StandardModelObject(color=aug.color, **base_data)
+    
+    
+
     def _find_valid_position(self, scale, placed):
         """
         Create random positions, Control if that random positions attached to the ground.
@@ -82,6 +90,8 @@ class ModelAdder(Augmenter):
             new_pos = [x, y_fixed, z]
             if not control_collision(new_pos, scale, placed):
                 return new_pos
+            
+
 #TODO: Add landscape module. # pylint: disable=fixme
 @AugmenterRegistry.register("landscape")
 class LandScape(Augmenter):

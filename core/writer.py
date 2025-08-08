@@ -10,5 +10,6 @@ def write_config(map_name, map_config):
     """
     Writing generated augmentation configs.
     """
+    print(map_config.objects[0].color)
     with open(f"./configs/{map_name}.yaml", "w", encoding="utf-8") as f:
         yaml.dump(map_config.model_dump(),f, sort_keys=False)

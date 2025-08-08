@@ -5,12 +5,10 @@ This file contains all of the loading operations.
 Configs, maps etc. loading to the system here.
 
 """
-
-
 from pathlib import Path
 import trimesh
 import yaml
-from schemas.domain import MainConfig
+from models.domain import MainConfig, MapConfig
 
 
 # Reads the config file.
@@ -26,6 +24,18 @@ def load_config(path: str) -> MainConfig:
         data = yaml.safe_load(file)
 
     return MainConfig(**data)
+
+
+def load_map_config(path: str) -> MapConfig:
+    yaml_path = Path(path)
+    if not yaml_path.exists():
+        raise FileNotFoundError("YAML file not found.")
+
+    with open(yaml_path, 'r', encoding="utf-8") as file:
+        data = yaml.safe_load(file)
+
+    return MapConfig(**data)
+
 
 # Loads the trimesh scene
 def load_scene(map_path: str) -> trimesh.Scene:

@@ -1,6 +1,6 @@
 import pytest
 from core.augment_tool import augment, AugmenterRegistry, ModelAdder, LandScape, control_collision
-from schemas.domain import ModelObject
+from models.domain import ModelObject
 
 class DummyAug:
     def __init__(self, type_, count=1, position="random", scale=1.0, model="tree"):
