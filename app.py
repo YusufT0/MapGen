@@ -21,35 +21,43 @@ os.makedirs(folder_path, exist_ok=True)
 def generate_map_name():
     return f"map_{uuid.uuid4().hex[:8]}"
 
+
 def build_map_config(map_name: str, filetype: str, config, map_bounds, base_mesh) -> MapConfig:
-    map_config = MapConfig(
+    return MapConfig(
         map=f"{map_name}.{filetype}",
-        objects=[],
+        objects=[
+            obj
+            for aug in config.augmentations
+            for obj in augment(map_bounds, aug, base_mesh)
+        ],
         landscapes=[]
     )
-    for aug in config.augmentations:
-        augmentations = augment(map_bounds, aug, base_mesh)
-        map_config.objects.extend(augmentations)
+
+
+def generate_and_write_maps(config, scene, base_mesh, map_bounds, writer=write_config):
+    for _ in range(config.map_count):
+        map_name = generate_map_name()
+        map_config = build_map_config(map_name, config.output_type, config, map_bounds, base_mesh)
+        writer(map_name, map_config)
     return map_config
-
-
  
 @app.post("/create_configs")
 async def create_configs(data: ConfigInput):
     if not validate_config("config.yaml"):
-        return {"data" : "Please provide config file in correct format."}
+        return {"data": "Please provide config file in correct format."}
+
     scene = load_scene(data.obj_path)
     config = load_config(data.config_path)
     base_mesh = trimesh.util.concatenate(scene.dump())
     map_bounds = scene.bounds
-    
-    for _ in range(config.map_count):
-        map_name = generate_map_name()
-        map_config = build_map_config(map_name, config.output_type, config, map_bounds, base_mesh)
-        write_config(map_name, map_config)
-    print(map_config.objects[0].color)
-        
-    return {"data": "positive"}
+
+    last_map_config = generate_and_write_maps(config, scene, base_mesh, map_bounds)
+
+    return {
+    "status": "success",
+    "message": f"Generated {config.map_count} map configurations successfully.",
+    "last_map": last_map_config.map
+    }
 
 @app.post("/create_maps")
 async def create_maps():

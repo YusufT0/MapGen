@@ -7,7 +7,9 @@ from trimesh.transformations import translation_matrix, scale_matrix
 
 
 class ShapeCreator(ABC):
-    """Abstract base class for shape creation."""
+    """
+    Abstract base class for shape creation.
+    """
     
     @abstractmethod
     def create_shape(self, obj_conf) -> trimesh.Trimesh:
@@ -60,7 +62,9 @@ class ConeCreator(ShapeCreator):
 
 
 class CustomModelCreator(ShapeCreator):
-    """Creates shapes from custom model files."""
+    """
+    Creates shapes from custom model files.
+    """
     
     def create_shape(self, obj_conf) -> trimesh.Trimesh:
         # Load custom model 
@@ -73,14 +77,22 @@ class CustomModelCreator(ShapeCreator):
         return mesh
     
     def _apply_transformations(self, mesh, obj_conf):
-
+        """
+        Changing apply_transformations because there is no need for colors for
+        custom models. They have their own .mtl files for colors.
+        """
         mesh.apply_transform(scale_matrix(obj_conf.scale))
         mesh.apply_transform(translation_matrix(obj_conf.position))
         
         return mesh
 
 class ShapeFactory:
-    """Factory for creating shapes based on model type."""
+    """
+    Factory for creating shapes based on model type.
+    If anyone is going to create a new shape for the config:
+    Add the new model name as string here and create a new shape class. Inherit from the ShapeCreator
+    Then one can change the create_shape function that is inside of that class.
+    """
     
     def __init__(self):
         self._creators = {
@@ -105,31 +117,28 @@ class ShapeFactory:
         self._creators[model_type] = creator
 
 
-class SceneBuilder:
-    """Builds 3D scenes from configuration files."""
-    
-    def __init__(self, shape_factory: ShapeFactory):
-        self.shape_factory = shape_factory
-    
-    def build_scene(self, config, base_scene: trimesh.Scene) -> trimesh.Scene:
-        """Build a scene by adding objects to the base scene."""
-        for obj in config.objects:
-            shape = self.shape_factory.create_shape(obj)
-            base_scene.add_geometry(shape)
-        return base_scene
 
+def build_scene(config, shape_factory, base_scene):
+    """
+    Load the scene, load the shape factory, find the correct create_shape function.
+    Create the shape with trimesh add_geometry api.
+    Do it for all the objects that map configuration contains.
+    """
+    for obj in config.objects:
+        shape = shape_factory.create_shape(obj)
+        base_scene.add_geometry(shape)
+    return base_scene
 
-class SceneExporter:
-    """Handles exporting scenes to files."""
-    
-    def __init__(self, output_folder: str):
-        self.output_path = Path(output_folder)
-        self.output_path.mkdir(exist_ok=True)
-    
-    def export_scene(self, scene: trimesh.Scene, filename: str):
-        """Export a scene to a file."""
-        output_file = self.output_path / f"{filename}.obj"
-        scene.export(str(output_file))
+def export_scene(scene, filename, output_folder="output"):
+    """
+    Go into the output folder. If it's not exists create one.
+    Then export the scene to the output folder with the correspounding filename
+    The filename is going to be created uniquely when the entry code is executed.
+    """
+
+    Path(output_folder).mkdir(exist_ok=True)
+    scene.export(f"{output_folder}/{filename}.obj")
+
 
 
 class ConfigProcessor:
@@ -148,24 +157,32 @@ class ConfigProcessor:
 
 
 class SceneManager:
-    """Main orchestrator class that coordinates all components."""
+    """
+    Main orchestrator class that coordinates all components.
+    Manager is going to take the configuration input folder,
+    base map file that the augmentations are going to be made and
+    the map output folder.
+    """
     
-    def __init__(self, config_folder="./configs", base_map="./map.obj", output_folder="./maps"):
+    def __init__(self, config_folder, base_map, output_folder):
         self.base_map = base_map
         self.config_processor = ConfigProcessor(config_folder)
-        self.scene_builder = SceneBuilder(ShapeFactory())
-        self.scene_exporter = SceneExporter(output_folder)
+        self.shape_factory = ShapeFactory()
+        self.output_folder = output_folder
     
     def process_all_scenes(self):
-        """Process all configuration files and export scenes."""
+        """
+        Process all configuration files and export scenes.
+        """
         config_files = self.config_processor.get_config_files()
         
         for config_file in config_files:
             config = self.config_processor.load_config(config_file)
             base_scene = load_scene(self.base_map)
             
-            scene = self.scene_builder.build_scene(config, base_scene)
-            self.scene_exporter.export_scene(scene, config_file.stem)
+            scene = build_scene(config, self.shape_factory, base_scene)
+            export_scene(scene, config_file.stem, self.output_folder)
+
 
 
 def run_scene_builder(config_folder="./configs", base_map="./map.obj", output_folder="./maps"):
