@@ -1,51 +1,61 @@
+using System;
+using System.Collections;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEditor;
 using System.Diagnostics;
 using System.IO;
 using Unity.EditorCoroutines.Editor;
-using UnityEngine.Networking; 
 
-public class MyToolWindow : EditorWindow
+internal class MyToolWindow : EditorWindow
 {
-    // Kullan�c�n�n se�ece�i model dosyas�n�n yolu (.fbx vb.)
-    string modelPath = "";
-    string mtlPath = "";
+    // Kullanıcının seçeceği model dosyasının yolu (.fbx vb.)
+    internal string modelPath = "";
+    internal string mtlPath = "";
 
-    // Kullan�c�n�n se�ece�i config dosyas�n�n yolu (.yaml)
-    string configPath = "";
+    // Kullanıcının seçeceği config dosyasının yolu (.yaml)
+    internal string configPath = "";
 
-    // Backend API base URL(FastAPI �al��t��� adres)
+    // Backend API base URL (FastAPI base adresi)
     string baseURL = "http://127.0.0.1:8000/";
 
-    // Unity Editor men�s�ne bu pencereyi ekler, "Tools/My Tool UI" se�ene�iyle a��l�r
+    // Unity Editor menüsüne bu pencereyi ekler, "Tools/My Tool UI" seçeneği ile açılır
     [MenuItem("Tools/My Tool UI")]
     public static void ShowWindow()
     {
         GetWindow<MyToolWindow>("My Tool UI");
     }
 
-    // Editor penceresindeki UI elemanlar�n� �izdi�imiz metod
-    void OnGUI()
+    private IWebRequestHandler requestHandler = new WebRequestHandler(); // varsayılan handler
+
+    // Testlerde bu değeri değiştirebiliriz
+    internal void SetRequestHandler(IWebRequestHandler handler)
+    {
+        this.requestHandler = handler;
+    }
+
+    // Editor penceresindeki UI elemanlarını çizdiğimiz metod
+    internal void OnGUI()
     {
         GUILayout.Label("Input Fields", EditorStyles.boldLabel);
 
-        // Model dosyas� i�in input ve Browse butonu
+        // Model dosyası için input ve "Browse" butonu
         GUILayout.BeginHorizontal();
         modelPath = EditorGUILayout.TextField("Model", modelPath);
         if (GUILayout.Button("Browse", GUILayout.MaxWidth(80)))
         {
-            // Dosya se�me paneli a�, sadece fbx dosyalar� g�ster
+            // Dosya seçme paneli açılır, sadece fbx dosyaları gösterilir
             string path = EditorUtility.OpenFilePanel("Select FBX Model", "", "fbx");
             if (!string.IsNullOrEmpty(path)) modelPath = path;
         }
         GUILayout.EndHorizontal();
 
-        // Config (.yaml) dosyas� i�in input ve Browse butonu
+        // Config (.yaml) dosyası için input ve "Browse" butonu
         GUILayout.BeginHorizontal();
         configPath = EditorGUILayout.TextField("Config (.yaml)", configPath);
         if (GUILayout.Button("Browse", GUILayout.MaxWidth(80)))
         {
-            // Dosya se�me paneli a�, sadece yaml dosyalar� g�ster
+            // Dosya seçme paneli açılır, sadece yaml dosyaları gösterilir
             string path = EditorUtility.OpenFilePanel("Select Config YAML", "", "yaml");
             if (!string.IsNullOrEmpty(path)) configPath = path;
         }
@@ -54,9 +64,8 @@ public class MyToolWindow : EditorWindow
         // Model ve config yolu dolu mu diye kontrol
         bool inputsFilled = !string.IsNullOrEmpty(modelPath) && !string.IsNullOrEmpty(configPath);
 
-        // Butonlar� enable/disable yapmak i�in blok (�u anda kullan�lm�yor)
+        // Butonları aktif/pasif yapmak için blok
         EditorGUI.BeginDisabledGroup(!inputsFilled);
-        EditorGUI.EndDisabledGroup();
 
         // "Create Configs" butonu
         if (GUILayout.Button("Create Configs"))
@@ -73,14 +82,13 @@ public class MyToolWindow : EditorWindow
             string json = JsonUtility.ToJson(postData);
 
             Unity.EditorCoroutines.Editor.EditorCoroutineUtility.StartCoroutineOwnerless(SendCreateConfigsRequest(json));
-
         }
 
         // "Show Configs" butonu
         if (GUILayout.Button("Show Configs"))
         {
             UnityEngine.Debug.Log("Show Configs clicked");
-            // Backend'den config klas�r yolunu al�p explorer'da a�an coroutine ba�lat�l�r
+            // Backend'den config klasör yolunu alıp explorer'da açan coroutine başlatılır
             Unity.EditorCoroutines.Editor.EditorCoroutineUtility.StartCoroutineOwnerless(ShowConfigsCoroutine());
         }
 
@@ -88,19 +96,32 @@ public class MyToolWindow : EditorWindow
         if (GUILayout.Button("Create Maps"))
         {
             UnityEngine.Debug.Log("Create Maps clicked");
-            // TODO: Add logic
+
+            ConfigRequest sendData = new ConfigRequest
+            {
+                obj_path = modelPath,
+                mtl_path = mtlPath,
+                config_path = configPath
+            };
+
+            string json = JsonUtility.ToJson(sendData);
+
+            Unity.EditorCoroutines.Editor.EditorCoroutineUtility.StartCoroutineOwnerless(SendCreateMapsRequest(json));
         }
 
         // "Show Maps" butonu
         if (GUILayout.Button("Show Maps"))
         {
             UnityEngine.Debug.Log("Show Maps clicked");
-            // Backend'den haritalar�n oldu�u klas�r yolunu al�p explorer'da a�an coroutine ba�lat�l�r
+            // Backend'den haritaların olduğu klasör yolunu alıp explorer'da açan coroutine başlatılır
             Unity.EditorCoroutines.Editor.EditorCoroutineUtility.StartCoroutineOwnerless(ShowMapsCoroutine());
         }
+
+        EditorGUI.EndDisabledGroup();
     }
 
-    private System.Collections.IEnumerator SendCreateConfigsRequest(string json)
+    // Config oluşturma isteğini backend'e gönderen coroutine
+    internal virtual IEnumerator SendCreateConfigsRequest(string json)
     {
         string url = baseURL + "create_configs";
 
@@ -113,7 +134,7 @@ public class MyToolWindow : EditorWindow
 
             yield return www.SendWebRequest();
 
-            // HTTP iste�i başarısızsa hata mesaj� yaz
+            // HTTP isteği başarısızsa hata mesajı yaz
             if (www.result != UnityWebRequest.Result.Success)
             {
                 UnityEngine.Debug.LogError("Create Configs HTTP Error: " + www.error);
@@ -125,52 +146,16 @@ public class MyToolWindow : EditorWindow
         }
     }
 
-    // Haritalar�n bulundu�u klas�r�n yolunu backend'den al�p a�an coroutine
-    private System.Collections.IEnumerator ShowMapsCoroutine()
-    {
-        string endpoint = baseURL + "get_map_path";
-
-        using (UnityEngine.Networking.UnityWebRequest www = UnityEngine.Networking.UnityWebRequest.Get(endpoint))
-        {
-            yield return www.SendWebRequest();
-
-            // HTTP iste�i ba�ar�s�zsa hata mesaj� yaz
-            if (www.result != UnityEngine.Networking.UnityWebRequest.Result.Success)
-            {
-                UnityEngine.Debug.LogError("HTTP Error: " + www.error);
-                yield break;
-            }
-
-            // JSON cevab� al
-            string jsonResponse = www.downloadHandler.text;
-            UnityEngine.Debug.Log("JSON Response: " + jsonResponse);
-
-            // JSON'dan path de�erini parse et
-            string path = ParsePathFromJson(jsonResponse);
-            UnityEngine.Debug.Log("Parsed Path: " + path);
-
-            // Path ge�erliyse klas�r� explorer'da a�
-            if (!string.IsNullOrEmpty(path) && System.IO.Directory.Exists(path))
-            {
-                OpenFolderInExplorer(path);
-            }
-            else
-            {
-                UnityEngine.Debug.LogError("Invalid path or folder does not exists: " + path);
-            }
-        }
-    }
-
-    // Config klas�r yolunu backend'den al�p a�an coroutine
-    private System.Collections.IEnumerator ShowConfigsCoroutine()
+    // Config klasör yolunu backend'den alıp açan coroutine
+    internal virtual IEnumerator ShowConfigsCoroutine()
     {
         string endpoint = baseURL + "get_config_path";
 
-        using (UnityEngine.Networking.UnityWebRequest www = UnityEngine.Networking.UnityWebRequest.Get(endpoint))
+        using (UnityWebRequest www = UnityWebRequest.Get(endpoint))
         {
             yield return www.SendWebRequest();
 
-            if (www.result != UnityEngine.Networking.UnityWebRequest.Result.Success)
+            if (www.result != UnityWebRequest.Result.Success)
             {
                 UnityEngine.Debug.LogError("HTTP Error: " + www.error);
                 yield break;
@@ -182,19 +167,84 @@ public class MyToolWindow : EditorWindow
             string path = ParsePathFromJson(jsonResponse);
             UnityEngine.Debug.Log("Parsed Path: " + path);
 
-            if (!string.IsNullOrEmpty(path) && System.IO.Directory.Exists(path))
+            bool exists = Directory.Exists(path);
+            UnityEngine.Debug.Log("Directory.Exists: " + exists);
+
+            if (!string.IsNullOrEmpty(path) && exists)
+            {
+                UnityEngine.Debug.Log("Calling OpenFolderInExplorer...");
+                OpenFolderInExplorer(path);
+            }
+            else
+            {
+                UnityEngine.Debug.LogError("Invalid path or folder does not exist: " + path);
+            }
+        }
+    }
+
+    // Harita oluşturma isteğini backend'e gönderen coroutine
+    internal virtual IEnumerator SendCreateMapsRequest(string json)
+    {
+        string url = baseURL + "create_maps";
+
+        using (UnityWebRequest www = UnityWebRequest.PostWwwForm(url, ""))
+        {
+            byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
+            www.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            www.downloadHandler = new DownloadHandlerBuffer();
+            www.SetRequestHeader("Content-Type", "application/json");
+
+            yield return www.SendWebRequest();
+
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                UnityEngine.Debug.LogError("Create Maps HTTP Error: " + www.error);
+            }
+            else
+            {
+                UnityEngine.Debug.Log("Create Maps Response: " + www.downloadHandler.text);
+            }
+        }
+    }
+
+    // Haritaların bulunduğu klasör yolunu backend'den alıp açan coroutine
+    internal virtual IEnumerator ShowMapsCoroutine()
+    {
+        string endpoint = baseURL + "get_map_path";
+
+        using (UnityWebRequest www = UnityWebRequest.Get(endpoint))
+        {
+            yield return www.SendWebRequest();
+
+            // HTTP isteği başarısızsa hata mesajı yaz
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                UnityEngine.Debug.LogError("HTTP Error: " + www.error);
+                yield break;
+            }
+
+            // JSON cevabı al
+            string jsonResponse = www.downloadHandler.text;
+            UnityEngine.Debug.Log("JSON Response: " + jsonResponse);
+
+            // JSON'dan path değerini parse et
+            string path = ParsePathFromJson(jsonResponse);
+            UnityEngine.Debug.Log("Parsed Path: " + path);
+
+            // Path geçerliyse klasörü explorer'da aç
+            if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
             {
                 OpenFolderInExplorer(path);
             }
             else
             {
-                UnityEngine.Debug.LogError("Invalid path or folder does not exists: " + path);
+                UnityEngine.Debug.LogError("Invalid path or folder does not exist: " + path);
             }
         }
     }
 
-    // Backend'den d�nen JSON'dan "path" de�erini parse eder
-    string ParsePathFromJson(string json)
+    // Backend'den dönen JSON'dan "path" değerini parse eder
+    internal static string ParsePathFromJson(string json)
     {
         try
         {
@@ -203,36 +253,55 @@ public class MyToolWindow : EditorWindow
         }
         catch
         {
-            UnityEngine.Debug.LogError("JSON can not parsed: " + json);
+            UnityEngine.Debug.LogError("JSON could not be parsed: " + json);
             return null;
         }
     }
 
-    // JSON parse etmek i�in kullan�lan s�n�f, backend {"path": "some/folder"} �eklinde d�ner
+    // JSON parse etmek için kullanılan sınıf, backend {"path": "some/folder"} şeklinde döner
     [System.Serializable]
-    class PathResponse
+    internal class PathResponse
     {
         public string path;
     }
 
-    // Verilen klas�r yolunu Windows Explorer'da a�ar
-    void OpenFolderInExplorer(string path)
+    // Verilen klasör yolunu Windows Explorer'da açar
+    internal virtual void OpenFolderInExplorer(string path)
     {
         if (string.IsNullOrEmpty(path))
         {
             UnityEngine.Debug.LogError("Path is null or empty");
             return;
         }
-        // Windows i�in explorer.exe ile klas�r� a�
-        System.Diagnostics.Process.Start("explorer.exe", path.Replace("/", "\\"));   
- 
+
+        try
+        {
+            string winPath = path.Replace("/", "\\");
+            UnityEngine.Debug.Log("Trying to open folder: " + winPath);
+            UnityEngine.Debug.Log("Folder exists? " + Directory.Exists(winPath));
+
+            var psi = new ProcessStartInfo()
+            {
+                FileName = "explorer.exe",
+                Arguments = $"\"{winPath}\"",  // Path'i çift tırnak içine al
+                UseShellExecute = true,
+                Verb = "open"
+            };
+
+            Process.Start(psi);
+
+            UnityEngine.Debug.Log("Explorer process started.");
+        }
+        catch (Exception ex)
+        {
+            UnityEngine.Debug.LogError("Explorer launch failed: " + ex.Message);
+        }
     }
 
-
-    // Masa�st�n� Windows Explorer'da a�an yard�mc� metod (�u an kullan�lm�yor)
-    void OpenFileExplorer()
+    // Masaüstünü Windows Explorer'da açan yardımcı metod (şu an kullanılmıyor)
+    internal virtual void OpenFileExplorer()
     {
-        string path = System.Environment.GetFolderPath(System.Environment.SpecialFolder.Desktop);
+        string path = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
 
         ProcessStartInfo startInfo = new ProcessStartInfo()
         {
@@ -243,6 +312,4 @@ public class MyToolWindow : EditorWindow
 
         Process.Start(startInfo);
     }
-
 }
-
