@@ -129,7 +129,7 @@ def build_scene(config, shape_factory, base_scene):
         base_scene.add_geometry(shape)
     return base_scene
 
-def export_scene(scene, filename, output_folder="output"):
+def export_scene(scene, filename, output_folder="maps"):
     """
     Go into the output folder. If it's not exists create one.
     Then export the scene to the output folder with the correspounding filename
@@ -137,7 +137,7 @@ def export_scene(scene, filename, output_folder="output"):
     """
 
     Path(output_folder).mkdir(exist_ok=True)
-    scene.export(f"{output_folder}/{filename}.obj")
+    scene.export(f"{output_folder}/{filename}")
 
 
 
@@ -181,7 +181,7 @@ class SceneManager:
             base_scene = load_scene(self.base_map)
             
             scene = build_scene(config, self.shape_factory, base_scene)
-            export_scene(scene, config_file.stem, self.output_folder)
+            export_scene(scene, config.map, self.output_folder)
 
 
 

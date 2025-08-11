@@ -1,6 +1,6 @@
 map: map.obj
 map_count: 3
-output_type: glb
+output_type: obj
 augmentations:
   - type: add_model
     model: cube
