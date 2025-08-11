@@ -1,0 +1,13 @@
+{
+  "name": "com.sule.tool",
+  "version": "1.0.0",
+  "displayName": "Unity tool",
+  "description": "Generate augmented maps",
+  "unity": "2021.3",
+  "author": {
+    "name": "Sule",
+    "email": "sulegeredelioglu@gmail.com",
+    "url": "https://github.com/YusufT0/MapGen"
+  },
+  "keywords": ["tool", "unity", "editor"]
+}
