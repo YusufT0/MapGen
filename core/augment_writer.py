@@ -4,6 +4,7 @@ from pathlib import Path
 from abc import ABC, abstractmethod
 from core.reader import load_map_config, load_scene
 from trimesh.transformations import translation_matrix, scale_matrix
+from core.augment_tool import control_random_creation
 
 
 class ShapeCreator(ABC):
@@ -118,12 +119,18 @@ class ShapeFactory:
 
 
 
-def build_scene(config, shape_factory, base_scene):
+def build_scene(config, shape_factory, landscape_builder, base_scene):
     """
     Load the scene, load the shape factory, find the correct create_shape function.
     Create the shape with trimesh add_geometry api.
     Do it for all the objects that map configuration contains.
     """
+    for land in config.landscapes:
+        new_mesh = landscape_builder.create_landscape(base_scene, land)
+        geom_name = next(iter(base_scene.geometry.keys()))
+        del base_scene.geometry[geom_name]
+        base_scene.add_geometry(new_mesh, geom_name)
+
     for obj in config.objects:
         shape = shape_factory.create_shape(obj)
         base_scene.add_geometry(shape)
@@ -155,7 +162,72 @@ class ConfigProcessor:
         """Load a single configuration file."""
         return load_map_config(str(config_file))
 
+class LandScapeBuilder:
+    def __init__(self):
+        pass
+        
+    def create_landscape(self, scene, landscape_config):
 
+        mesh = next(iter(scene.geometry.values()))
+        position = list(landscape_config.position)
+        smoothness = float(landscape_config.smoothness)
+        radius = float(landscape_config.radius)
+
+
+        vertices = mesh.vertices.copy()
+        peak_x, peak_y, peak_z = position[0], position[1], position[2]
+        
+        vertex_xz = vertices[:, [0, 2]]
+        peak_xz = np.array([peak_x, peak_z])
+        distances = np.linalg.norm(vertex_xz - peak_xz, axis=1)
+
+        max_radius = abs(peak_y) * radius  # Use absolute value for radius calculation
+        affected_mask = distances <= max_radius
+        affected_vertices = np.where(affected_mask)[0]
+        
+        for i in affected_vertices:
+            vertex = vertices[i]
+            distance = distances[i]
+            
+            if distance == 0:
+                falloff = 1.0
+            else:
+                normalized_distance = distance / max_radius
+                if smoothness == 0:
+                    # Linear falloff (sharp edges)
+                    falloff = max(0, 1 - normalized_distance)
+                elif smoothness == 1:
+                    # Smooth polynomial falloff (cosine-based for natural hills)
+                    falloff = 0.5 * (1 - np.cos(np.pi * (1-normalized_distance))) if normalized_distance <= 1 else 0
+                else:
+                    # Blend between linear and polynomial
+                    linear_falloff = max(0, 1 - normalized_distance)
+                    smooth_falloff = 0.5 * (1 + np.cos(np.pi * normalized_distance)) if normalized_distance <= 1 else 0
+                    falloff = linear_falloff * (1 - smoothness) + smooth_falloff * smoothness
+            
+            ground_y = control_random_creation(vertex[0], vertex[1], vertex[2], mesh)
+            
+            if peak_y >= 0:
+                # Raising terrain (mountains/hills)
+                target_height = ground_y + (peak_y - ground_y) * falloff
+                if target_height > ground_y and target_height > vertex[1]:
+                    vertices[i][1] = target_height
+            else:
+                # Lowering terrain (valleys/depressions)
+                depression_depth = abs(peak_y) * falloff
+                target_height = ground_y - depression_depth
+                if target_height < ground_y and target_height < vertex[1]:
+                    vertices[i][1] = target_height
+
+        mesh.vertices = vertices
+        mesh.remove_degenerate_faces()
+        mesh.remove_duplicate_faces()
+        mesh.fix_normals()
+        return mesh
+
+
+
+    
 class SceneManager:
     """
     Main orchestrator class that coordinates all components.
@@ -168,6 +240,7 @@ class SceneManager:
         self.base_map = base_map
         self.config_processor = ConfigProcessor(config_folder)
         self.shape_factory = ShapeFactory()
+        self.landscape_builder = LandScapeBuilder()
         self.output_folder = output_folder
     
     def process_all_scenes(self):
@@ -180,7 +253,7 @@ class SceneManager:
             config = self.config_processor.load_config(config_file)
             base_scene = load_scene(self.base_map)
             
-            scene = build_scene(config, self.shape_factory, base_scene)
+            scene = build_scene(config, self.shape_factory, self.landscape_builder, base_scene)
             export_scene(scene, config.map, self.output_folder)
 
 

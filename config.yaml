@@ -20,8 +20,10 @@ augmentations:
     scale: 0.2
     count: 20
     position: random
-  # - type:: manip_env
-  #   position: random
-  #   count: 10
+  - type: landscape
+    position: random
+    count: 3
+    radius: random
+    smoothness: random
     
 

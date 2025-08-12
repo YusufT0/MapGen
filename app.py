@@ -23,16 +23,22 @@ def generate_map_name():
 
 
 def build_map_config(map_name: str, filetype: str, config, map_bounds, base_mesh) -> MapConfig:
+    objects = []
+    landscapes = []
+    
+    for aug in config.augmentations:
+        augment_results = augment(map_bounds, aug, base_mesh)
+        
+        if aug.type == "landscape":
+            landscapes.extend(augment_results)
+        else:  # aug.type == "add_model"
+            objects.extend(augment_results)
+    
     return MapConfig(
         map=f"{map_name}.{filetype}",
-        objects=[
-            obj
-            for aug in config.augmentations
-            for obj in augment(map_bounds, aug, base_mesh)
-        ],
-        landscapes=[]
+        objects=objects,
+        landscapes=landscapes
     )
-
 
 def generate_and_write_maps(config, scene, base_mesh, map_bounds, writer=write_config):
     for _ in range(config.map_count):

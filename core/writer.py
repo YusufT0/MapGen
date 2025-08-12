@@ -1,7 +1,7 @@
 """
 writer.py
 
-All of the file writing operations is going to be here.
+All of the file config writing operations is going to be here.
 
 """
 
