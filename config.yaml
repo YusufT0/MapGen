@@ -1,23 +1,10 @@
-map: map.obj
 map_count: 3
 output_type: obj
 augmentations:
   - type: add_model
-    model: cube
-    scale: 5.0
-    count: 10
-    position: random
-    color: [0, 255, 0, 255]  # Green cubes
-  # - type: add_model
-  #   model: cylinder
-  #   scale: 5.0
-  #   count: 5
-  #   position: random
-  #   color: [0, 0, 255, 255]  # Blue cubes
-  - type: add_model
     model: custom
     custom_path: "./Lowpoly_tree_sample.obj"
-    scale: 0.2
+    scale: 0.05
     count: 20
     position: random
   - type: landscape

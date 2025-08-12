@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from core.augment_tool import augment
 from core.reader import load_config, load_scene
 from core.augment_writer import run_scene_builder
-from models.api import ConfigInput
+from models.api import ConfigInput, CreatorInput
 from models.domain import MapConfig
 from core.writer import write_config
 from validation.schema_test import validate_config 
@@ -66,8 +66,10 @@ async def create_configs(data: ConfigInput):
     }
 
 @app.post("/create_maps")
-async def create_maps():
-    run_scene_builder()
+async def create_maps(data: CreatorInput):
+    run_scene_builder(
+        base_map=data.base_map or "./map.obj"
+    )
 @app.get("/get_map_path")
 async def get_map_path():
     return {"path": os.path.abspath("./maps")}

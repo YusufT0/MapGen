@@ -260,5 +260,6 @@ class SceneManager:
 
 def run_scene_builder(config_folder="./configs", base_map="./map.obj", output_folder="./maps"):
     """Entry point function."""
+    print(base_map)
     manager = SceneManager(config_folder, base_map, output_folder)
     manager.process_all_scenes()

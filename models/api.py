@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Optional
 
 
 class ConfigInput(BaseModel):
@@ -8,3 +9,5 @@ class ConfigInput(BaseModel):
 
 
 
+class CreatorInput(BaseModel):
+    base_map: Optional[str] = None

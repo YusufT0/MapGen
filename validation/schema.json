@@ -1,7 +1,6 @@
 {
   "type": "object",
   "properties": {
-    "map": { "type": "string" },
     "map_count": { "type": "integer" },
     "output_type": {
       "type": "string",
@@ -111,5 +110,5 @@
       }
     }
   },
-  "required": ["map", "map_count", "output_type", "augmentations"]
+  "required": ["map_count", "output_type", "augmentations"]
 }
