@@ -12,5 +12,9 @@ augmentations:
     count: 3
     radius: random
     smoothness: random
-    
+  - type: landscape
+    position: [0,-4,0]
+    smoothness: 1
+    radius: 1
+    count: 1
 

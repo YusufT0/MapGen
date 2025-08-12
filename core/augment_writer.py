@@ -118,20 +118,26 @@ class ShapeFactory:
         self._creators[model_type] = creator
 
 
+def apply_landscape(config, landscape_builder, base_scene):
 
-def build_scene(config, shape_factory, landscape_builder, base_scene):
-    """
-    Load the scene, load the shape factory, find the correct create_shape function.
-    Create the shape with trimesh add_geometry api.
-    Do it for all the objects that map configuration contains.
-    """
     for land in config.landscapes:
         new_mesh = landscape_builder.create_landscape(base_scene, land)
         geom_name = next(iter(base_scene.geometry.keys()))
         del base_scene.geometry[geom_name]
         base_scene.add_geometry(new_mesh, geom_name)
+    return base_scene
 
+
+def build_scene(config, shape_factory, base_scene):
+    """
+    Load the scene, load the shape factory, find the correct create_shape function.
+    Create the shape with trimesh add_geometry api.
+    Do it for all the objects that map configuration contains.
+    """
+    mesh = next(iter(base_scene.geometry.values()))
     for obj in config.objects:
+        new_y = control_random_creation(obj.position[0], obj.position[1], obj.position[2], mesh) + (obj.scale / 2)
+        obj.position[1] = new_y
         shape = shape_factory.create_shape(obj)
         base_scene.add_geometry(shape)
     return base_scene
@@ -242,6 +248,7 @@ class SceneManager:
         self.shape_factory = ShapeFactory()
         self.landscape_builder = LandScapeBuilder()
         self.output_folder = output_folder
+        self.base_scene = load_scene(self.base_map)
     
     def process_all_scenes(self):
         """
@@ -251,9 +258,8 @@ class SceneManager:
         
         for config_file in config_files:
             config = self.config_processor.load_config(config_file)
-            base_scene = load_scene(self.base_map)
-            
-            scene = build_scene(config, self.shape_factory, self.landscape_builder, base_scene)
+            self.base_scene = apply_landscape(config, self.landscape_builder, self.base_scene)
+            scene = build_scene(config, self.shape_factory, self.base_scene)
             export_scene(scene, config.map, self.output_folder)
 
 
