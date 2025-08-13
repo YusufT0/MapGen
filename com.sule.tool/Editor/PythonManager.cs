@@ -18,7 +18,7 @@ internal class MyToolWindow : EditorWindow
 
     string baseURL = "http://127.0.0.1:8000/";
 
-    [MenuItem("Tools/My Tool UI")]
+    [MenuItem("Tools/MapGen")]
     public static void ShowWindow()
     {
         GetWindow<MyToolWindow>("MapGen");
