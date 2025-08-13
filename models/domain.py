@@ -2,27 +2,37 @@ from pydantic import BaseModel, Field
 from typing import Union, Optional, Literal, List
 
 
-class AugmentConfig(BaseModel):
+
+class BaseAugmentConfig(BaseModel):
     type: str
-    model: str  
+
+class AddModelConfig(BaseAugmentConfig):
+    type: Literal["add_model"]
+    model: str
     custom_path: Optional[str] = None
     scale: float
     count: int
     position: Union[str, list[float]]
-    color: list[int] = Field(default_factory=lambda: [0, 0, 255])  
+    color: list[int] = Field(default_factory=lambda: [0, 0, 255])
+
+class LandscapeConfig(BaseAugmentConfig):
+    type: Literal["landscape"]
+    position: Union[str, list[float]]
+    smoothness: Union[str, float]
+    count: int
+    radius: Union[str, float]
 
 
 class MainConfig(BaseModel):
-    map: str
     map_count: int
     output_type: Literal["glb", "gltf", "obj"]
-    augmentations: List[AugmentConfig]
+    augmentations: List[Union[AddModelConfig, LandscapeConfig]]
 
 
-class Landscape(BaseModel):
+class LandscapeModel(BaseModel):
     position: list[float]
     radius: float
-    shrink_vel: float
+    smoothness: float
 
 class ModelObject(BaseModel):
     model: str
@@ -38,4 +48,4 @@ class CustomModelObject(ModelObject):
 class MapConfig(BaseModel):
     map: str
     objects: List[Union[StandardModelObject, CustomModelObject]]
-    landscapes: List[Landscape]
+    landscapes: List[LandscapeModel]

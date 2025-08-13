@@ -7,9 +7,10 @@ and model addition strategies using registered augmentation classes.
 """
 from abc import ABC, abstractmethod
 import math
+import random
 import numpy as np
 import trimesh
-from models.domain import CustomModelObject, StandardModelObject
+from models.domain import CustomModelObject, StandardModelObject, LandscapeModel
 
 
 class AugmenterRegistry:
@@ -99,10 +100,44 @@ class LandScape(Augmenter):
     This class is going to contain all of the environment manipulations 
     """
     def generate(self, aug):
-        return []
-    def do_things(self):
-        pass
+        results = []
+        for _ in range(aug.count):
+            model = self._create_landscape(aug)
+            results.append(model)
 
+        return results
+    
+    def _get_position(self, aug):
+        if (aug.position == "random"):
+            x,y,z = create_random_xyz(self.bounds)
+            return [x,y,z]
+        return aug.position
+    def _get_smoothness(self, aug):
+        if (aug.smoothness == "random"):
+            val = np.random.random()
+            return val
+        return aug.smoothness
+    
+    def _get_radius(self, aug):
+        if (aug.radius == "random"):
+            val = np.random.uniform(0, 2)
+            return val
+        return aug.radius
+    
+    def _create_landscape(self, aug):
+        position = self._get_position(aug)
+        smoothness = self._get_smoothness(aug)
+        radius = self._get_radius(aug)
+        base_data = {
+            'position': position,
+            'smoothness': smoothness,
+            'radius': radius
+        }
+
+        return LandscapeModel(**base_data)
+            
+
+    
 def augment(bounds, aug, base_mesh):
     """
     The function that is going to be called from outside.

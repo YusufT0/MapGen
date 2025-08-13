@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from core.augment_tool import augment
 from core.reader import load_config, load_scene
 from core.augment_writer import run_scene_builder
-from models.api import ConfigInput
+from models.api import ConfigInput, CreatorInput
 from models.domain import MapConfig
 from core.writer import write_config
 from validation.schema_test import validate_config 
@@ -23,16 +23,22 @@ def generate_map_name():
 
 
 def build_map_config(map_name: str, filetype: str, config, map_bounds, base_mesh) -> MapConfig:
+    objects = []
+    landscapes = []
+    
+    for aug in config.augmentations:
+        augment_results = augment(map_bounds, aug, base_mesh)
+        
+        if aug.type == "landscape":
+            landscapes.extend(augment_results)
+        else:  # aug.type == "add_model"
+            objects.extend(augment_results)
+    
     return MapConfig(
         map=f"{map_name}.{filetype}",
-        objects=[
-            obj
-            for aug in config.augmentations
-            for obj in augment(map_bounds, aug, base_mesh)
-        ],
-        landscapes=[]
+        objects=objects,
+        landscapes=landscapes
     )
-
 
 def generate_and_write_maps(config, scene, base_mesh, map_bounds, writer=write_config):
     for _ in range(config.map_count):
@@ -60,8 +66,10 @@ async def create_configs(data: ConfigInput):
     }
 
 @app.post("/create_maps")
-async def create_maps():
-    run_scene_builder()
+async def create_maps(data: CreatorInput):
+    run_scene_builder(
+        base_map=data.base_map or "./map.obj"
+    )
 @app.get("/get_map_path")
 async def get_map_path():
     return {"path": os.path.abspath("./maps")}

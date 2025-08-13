@@ -1,64 +1,114 @@
 {
   "type": "object",
   "properties": {
-    "map": { "type": "string" },
     "map_count": { "type": "integer" },
     "output_type": {
       "type": "string",
-      "enum": ["glb", "obj", "fbx"]
+      "enum": ["glb", "gltf", "obj"]
     },
     "augmentations": {
       "type": "array",
       "items": {
-        "type": "object",
-        "properties": {
-          "type": { "type": "string", "enum": ["add_model"] },
-          "model": { 
-            "type": "string", 
-            "enum": ["cube", "cone", "cylinder", "sphere", "custom"] 
-          },
-          "custom_path": { "type": "string" },
-          "scale": { "type": "number" },
-          "count": { "type": "integer" },
-          "position": {
-            "oneOf": [
-              {
-                "type": "string",
-                "enum": ["random"]
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["add_model"] },
+              "model": { 
+                "type": "string", 
+                "enum": ["cube", "cone", "cylinder", "sphere", "custom"] 
               },
-              {
+              "custom_path": { "type": "string" },
+              "scale": { "type": "number" },
+              "count": { "type": "integer" },
+              "position": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "enum": ["random"]
+                  },
+                  {
+                    "type": "array",
+                    "items": { "type": "number" },
+                    "minItems": 3,
+                    "maxItems": 3
+                  }
+                ]
+              }, 
+              "color": {
                 "type": "array",
-                "items": { "type": "number" },
-                "minItems": 3,
-                "maxItems": 3
+                "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+                "minItems": 4,
+                "maxItems": 4
+              }
+            },
+            "required": ["type", "model", "scale", "count"],
+            "allOf": [
+              {
+                "if": {
+                  "properties": { "model": { "const": "custom" } }
+                },
+                "then": {
+                  "required": ["custom_path"]
+                },
+                "else": {
+                  "not": {
+                    "required": ["custom_path"]
+                  }
+                }
               }
             ]
-          }, 
-          "color": {
-            "type": "array",
-            "items": { "type": "integer", "minimum": 0, "maximum": 255 },
-            "minItems": 4,
-            "maxItems": 4
-          }
-        },
-        "required": ["type", "model", "scale", "count"],
-        "allOf": [
+          },
           {
-            "if": {
-              "properties": { "model": { "const": "custom" } }
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["landscape"] },
+              "position": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "enum": ["random"]
+                  },
+                  {
+                    "type": "array",
+                    "items": { "type": "number" },
+                    "minItems": 3,
+                    "maxItems": 3
+                  }
+                ]
+              },
+              "smoothness": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "enum": ["random"]
+                  },
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                ]
+              },
+              "radius": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "enum": ["random"]
+                  },
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                ]
+              },
+              "count": { "type": "integer", "minimum": 1 }
             },
-            "then": {
-              "required": ["custom_path"]
-            },
-            "else": {
-              "not": {
-                "required": ["custom_path"]
-              }
-            }
+            "required": ["type", "position", "smoothness", "radius", "count"]
           }
         ]
       }
     }
   },
-  "required": ["map", "map_count", "output_type", "augmentations"]
+  "required": ["map_count", "output_type", "augmentations"]
 }

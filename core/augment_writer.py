@@ -4,6 +4,7 @@ from pathlib import Path
 from abc import ABC, abstractmethod
 from core.reader import load_map_config, load_scene
 from trimesh.transformations import translation_matrix, scale_matrix
+from core.augment_tool import control_random_creation
 
 
 class ShapeCreator(ABC):
@@ -19,7 +20,7 @@ class ShapeCreator(ABC):
     def _apply_transformations(self, mesh: trimesh.Trimesh, obj_conf):
         """Apply common transformations (scale, position, color)."""
         # Set color
-        color = np.array(obj_conf.color * np.ones(4))
+        color = np.array(obj_conf.color * np.ones(3))
         mesh.visual.face_colors = color
         
         # Apply transformations
@@ -117,6 +118,15 @@ class ShapeFactory:
         self._creators[model_type] = creator
 
 
+def apply_landscape(config, landscape_builder, base_scene):
+
+    for land in config.landscapes:
+        new_mesh = landscape_builder.create_landscape(base_scene, land)
+        geom_name = next(iter(base_scene.geometry.keys()))
+        del base_scene.geometry[geom_name]
+        base_scene.add_geometry(new_mesh, geom_name)
+    return base_scene
+
 
 def build_scene(config, shape_factory, base_scene):
     """
@@ -124,12 +134,15 @@ def build_scene(config, shape_factory, base_scene):
     Create the shape with trimesh add_geometry api.
     Do it for all the objects that map configuration contains.
     """
+    mesh = next(iter(base_scene.geometry.values()))
     for obj in config.objects:
+        new_y = control_random_creation(obj.position[0], obj.position[1], obj.position[2], mesh) + (obj.scale / 2)
+        obj.position[1] = new_y
         shape = shape_factory.create_shape(obj)
         base_scene.add_geometry(shape)
     return base_scene
 
-def export_scene(scene, filename, output_folder="output"):
+def export_scene(scene, filename, output_folder="maps"):
     """
     Go into the output folder. If it's not exists create one.
     Then export the scene to the output folder with the correspounding filename
@@ -137,7 +150,7 @@ def export_scene(scene, filename, output_folder="output"):
     """
 
     Path(output_folder).mkdir(exist_ok=True)
-    scene.export(f"{output_folder}/{filename}.obj")
+    scene.export(f"{output_folder}/{filename}")
 
 
 
@@ -155,7 +168,72 @@ class ConfigProcessor:
         """Load a single configuration file."""
         return load_map_config(str(config_file))
 
+class LandScapeBuilder:
+    def __init__(self):
+        pass
+        
+    def create_landscape(self, scene, landscape_config):
 
+        mesh = next(iter(scene.geometry.values()))
+        position = list(landscape_config.position)
+        smoothness = float(landscape_config.smoothness)
+        radius = float(landscape_config.radius)
+
+
+        vertices = mesh.vertices.copy()
+        peak_x, peak_y, peak_z = position[0], position[1], position[2]
+        
+        vertex_xz = vertices[:, [0, 2]]
+        peak_xz = np.array([peak_x, peak_z])
+        distances = np.linalg.norm(vertex_xz - peak_xz, axis=1)
+
+        max_radius = abs(peak_y) * radius  # Use absolute value for radius calculation
+        affected_mask = distances <= max_radius
+        affected_vertices = np.where(affected_mask)[0]
+        
+        for i in affected_vertices:
+            vertex = vertices[i]
+            distance = distances[i]
+            
+            if distance == 0:
+                falloff = 1.0
+            else:
+                normalized_distance = distance / max_radius
+                if smoothness == 0:
+                    # Linear falloff (sharp edges)
+                    falloff = max(0, 1 - normalized_distance)
+                elif smoothness == 1:
+                    # Smooth polynomial falloff (cosine-based for natural hills)
+                    falloff = 0.5 * (1 - np.cos(np.pi * (1-normalized_distance))) if normalized_distance <= 1 else 0
+                else:
+                    # Blend between linear and polynomial
+                    linear_falloff = max(0, 1 - normalized_distance)
+                    smooth_falloff = 0.5 * (1 + np.cos(np.pi * normalized_distance)) if normalized_distance <= 1 else 0
+                    falloff = linear_falloff * (1 - smoothness) + smooth_falloff * smoothness
+            
+            ground_y = control_random_creation(vertex[0], vertex[1], vertex[2], mesh)
+            
+            if peak_y >= 0:
+                # Raising terrain (mountains/hills)
+                target_height = ground_y + (peak_y - ground_y) * falloff
+                if target_height > ground_y and target_height > vertex[1]:
+                    vertices[i][1] = target_height
+            else:
+                # Lowering terrain (valleys/depressions)
+                depression_depth = abs(peak_y) * falloff
+                target_height = ground_y - depression_depth
+                if target_height < ground_y and target_height < vertex[1]:
+                    vertices[i][1] = target_height
+
+        mesh.vertices = vertices
+        mesh.remove_degenerate_faces()
+        mesh.remove_duplicate_faces()
+        mesh.fix_normals()
+        return mesh
+
+
+
+    
 class SceneManager:
     """
     Main orchestrator class that coordinates all components.
@@ -168,7 +246,9 @@ class SceneManager:
         self.base_map = base_map
         self.config_processor = ConfigProcessor(config_folder)
         self.shape_factory = ShapeFactory()
+        self.landscape_builder = LandScapeBuilder()
         self.output_folder = output_folder
+        self.base_scene = load_scene(self.base_map)
     
     def process_all_scenes(self):
         """
@@ -178,14 +258,14 @@ class SceneManager:
         
         for config_file in config_files:
             config = self.config_processor.load_config(config_file)
-            base_scene = load_scene(self.base_map)
-            
-            scene = build_scene(config, self.shape_factory, base_scene)
-            export_scene(scene, config_file.stem, self.output_folder)
+            self.base_scene = apply_landscape(config, self.landscape_builder, self.base_scene)
+            scene = build_scene(config, self.shape_factory, self.base_scene)
+            export_scene(scene, config.map, self.output_folder)
 
 
 
 def run_scene_builder(config_folder="./configs", base_map="./map.obj", output_folder="./maps"):
     """Entry point function."""
+    print(base_map)
     manager = SceneManager(config_folder, base_map, output_folder)
     manager.process_all_scenes()
