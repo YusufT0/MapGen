@@ -59,3 +59,19 @@ The backend is built with FastAPI to receive HTTP requests from Unity and genera
 | `POST` | `/create_maps`      | Creates maps from configs          |
 | `GET`  | `/get_config_path`  | Returns the path to the configs folder |
 | `GET`  | `/get_map_path`     | Returns the path to the maps folder |
+
+---
+
+## 📄 Configuration Files (.yaml)
+
+The configuration files define how maps will be generated and augmented in the project. These YAML files contain settings for:
+
+- The number of maps to generate (`map_count`)
+- Output file format (`output_type`), e.g., "obj"
+- A list of augmentations to apply on the maps (`augmentations`), which specify:
+  - The type of augmentation (e.g., adding a custom model, generating landscape features)
+  - Parameters for each augmentation, such as:
+    - Model path and scale
+    - Count of objects to add
+    - Position (can be fixed or random)
+    - Additional properties like smoothness and radius for landscapes
