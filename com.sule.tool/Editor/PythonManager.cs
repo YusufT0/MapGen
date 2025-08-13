@@ -48,7 +48,8 @@ internal class MyToolWindow : EditorWindow
             string path = EditorUtility.OpenFilePanel("Select FBX Model", "", "fbx,obj");
             if (!string.IsNullOrEmpty(path))
             {
-                newModelPath = path;
+                newModelPath = Path.GetFullPath(path); // Global path
+                modelPath = newModelPath;
                 ProcessModelPath(); // dönüşüm fonksiyonu
             }
         }
@@ -66,7 +67,8 @@ internal class MyToolWindow : EditorWindow
                     string ext = Path.GetExtension(path).ToLower();
                     if (ext == ".fbx" || ext == ".obj")
                     {
-                        newModelPath = path;
+                        newModelPath = Path.GetFullPath(path); // Global path
+                        modelPath = newModelPath;
                         ProcessModelPath(); // dönüşüm fonksiyonu
                         UnityEngine.Debug.Log("Model file dragged: " + path);
                     }
@@ -123,35 +125,7 @@ internal class MyToolWindow : EditorWindow
         }
 
         bool inputsFilled = !string.IsNullOrEmpty(modelPath)  && !string.IsNullOrEmpty(configPath) ;
-
-        // Eğer yeni bir dosya seçilmişse path'i güncelle ve dönüşüm uygula
-        if (!string.IsNullOrEmpty(newModelPath) && newModelPath != modelPath)
-        {
-            modelPath = newModelPath;
-            //UnityEngine.Debug.Log("New model path selected: " + modelPath);
-
-            if (modelPath.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase))
-            {
-                (objPath, mtlPath) = FBXtoOBJExporter.ConvertExternalFBX(modelPath);
-
-                if (!string.IsNullOrEmpty(objPath))
-                {
-                    UnityEngine.Debug.Log("FBX conversion succeeded. OBJ: " + objPath + " | MTL: " + mtlPath);
-                }
-                else
-                {
-                    UnityEngine.Debug.LogError("FBX conversion failed.");
-                }
-            }
-            else if (modelPath.EndsWith(".obj", StringComparison.OrdinalIgnoreCase))
-            {
-                objPath = modelPath;
-                mtlPath = "";
-                UnityEngine.Debug.Log(".obj selected. OBJ path: " + objPath);
-            }
-        }
-
-        
+  
         EditorGUI.BeginDisabledGroup(!inputsFilled);
 
         if (GUILayout.Button("Create Configs"))
@@ -379,6 +353,5 @@ internal class MyToolWindow : EditorWindow
             UnityEngine.Debug.Log(".obj selected. OBJ path: " + objPath);
         }
     }
-
 
 }
