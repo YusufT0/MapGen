@@ -164,11 +164,9 @@ internal class MyToolWindow : EditorWindow
         {
             UnityEngine.Debug.Log("Create Maps clicked");
 
-            ConfigRequest sendData = new ConfigRequest
+            CreatorRequest sendData = new CreatorRequest
             {
-                obj_path = objPath,
-                mtl_path = mtlPath,
-                config_path = configPath
+                base_map = objPath
             };
 
             string json = JsonUtility.ToJson(sendData);
