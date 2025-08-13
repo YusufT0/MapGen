@@ -62,16 +62,44 @@ The backend is built with FastAPI to receive HTTP requests from Unity and genera
 
 ---
 
-## 📄 Configuration Files (.yaml)
+## Configuration Overview
+**map_count**
+Number of unique scenes to generate per run.
 
-The configuration files define how maps will be generated and augmented in the project. These YAML files contain settings for:
+**output_type:** 
+Output format of the generated 3D scenes. (.glb, .obj, .stl)
 
-- The number of maps to generate (`map_count`)
-- Output file format (`output_type`), e.g., "obj"
-- A list of augmentations to apply on the maps (`augmentations`), which specify:
-  - The type of augmentation (e.g., adding a custom model, generating landscape features)
-  - Parameters for each augmentation, such as:
-    - Model path and scale
-    - Count of objects to add
-    - Position (can be fixed or random)
-    - Additional properties like smoothness and radius for landscapes
+**augmentations:**
+A list of scene modifications applied to each map.
+
+### Augmentation Details
+**1. Basic Model Addition**
+type: add_model
+model: cube
+scale: 0.3
+count: 10
+position: random
+color: [0,0,255]
+
+- This configuration adds 10 randomly placed blue cubes to the screen that is scaled 0.3.
+- Available basic models: cube, sphere, cylinder, cone
+- Additionally position can be given as [x,y,z] and it places object at that position.
+**2. Custom Model Addition**
+type: add_model
+model: custom
+custom_path: "./rock.glb"
+scale: 0.3
+count: 10
+position: random
+- Generates 10 random rock models that is scaled 0.3 to the screen.
+- It can take glb, obj and dae files as input.
+- position can be given as [x,y,z] still.
+**3. Landscape**
+type: landscape
+position: random
+count: 3
+radius: random
+smoothness: random
+- Generates 3 randomly positioned landscapes.
+- position can be fixed again.
+  
