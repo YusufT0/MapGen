@@ -20,7 +20,7 @@ class ShapeCreator(ABC):
     def _apply_transformations(self, mesh: trimesh.Trimesh, obj_conf):
         """Apply common transformations (scale, position, color)."""
         # Set color
-        color = np.array(obj_conf.color * np.ones(4))
+        color = np.array(obj_conf.color * np.ones(3))
         mesh.visual.face_colors = color
         
         # Apply transformations
