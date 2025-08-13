@@ -3,12 +3,48 @@ using UnityEngine;
 using System.IO;
 using System.Text;
 using System.Globalization;
+using System;
 
 public static class FBXtoOBJExporter
 {
     // Converts an external FBX file to OBJ and MTL files in the Assets/Temp folder
     public static (string objPath, string mtlPath) ConvertExternalFBX(string externalFbxPath)
     {
+        // Eðer kullanýcý sadece dosya adý yazdýysa ve bu yol mutlak deðilse
+        if (!Path.IsPathRooted(externalFbxPath))
+        {
+            // Eðer yol zaten "Assets/" ile baþlýyorsa, doðrudan çöz
+            if (externalFbxPath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase))
+            {
+                string fullPath = Path.Combine(Directory.GetParent(Application.dataPath).FullName, externalFbxPath);
+
+                if (File.Exists(fullPath))
+                {
+                    externalFbxPath = fullPath;
+                }
+                else
+                {
+                    Debug.LogError("Relative path is invalid and not found inside Assets: " + fullPath);
+                    return (null, null);
+                }
+            }
+            else
+            {
+                // Diðer tüm göreli yollar için Assets altýna ekle
+                string assumedUnityPath = Path.Combine(Application.dataPath, externalFbxPath);
+
+                if (File.Exists(assumedUnityPath))
+                {
+                    externalFbxPath = assumedUnityPath;
+                }
+                else
+                {
+                    Debug.LogError("Relative path is invalid and not found inside Assets: " + assumedUnityPath);
+                    return (null, null);
+                }
+            }
+        }
+
         // Check if the input FBX file exists
         if (!File.Exists(externalFbxPath))
         {

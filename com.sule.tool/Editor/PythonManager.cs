@@ -34,6 +34,7 @@ internal class MyToolWindow : EditorWindow
     internal void OnGUI()
     {
         Event evt = Event.current;
+        string tempModelPath = modelPath;
 
         GUILayout.Label("Input Fields", EditorStyles.boldLabel);
 
@@ -45,7 +46,11 @@ internal class MyToolWindow : EditorWindow
         if (GUILayout.Button("Browse", GUILayout.MaxWidth(80)))
         {
             string path = EditorUtility.OpenFilePanel("Select FBX Model", "", "fbx,obj");
-            if (!string.IsNullOrEmpty(path)) newModelPath = path;
+            if (!string.IsNullOrEmpty(path))
+            {
+                newModelPath = path;
+                ProcessModelPath(); // dönüşüm fonksiyonu
+            }
         }
         GUILayout.EndHorizontal();
 
@@ -62,6 +67,7 @@ internal class MyToolWindow : EditorWindow
                     if (ext == ".fbx" || ext == ".obj")
                     {
                         newModelPath = path;
+                        ProcessModelPath(); // dönüşüm fonksiyonu
                         UnityEngine.Debug.Log("Model file dragged: " + path);
                     }
                     else
@@ -71,6 +77,13 @@ internal class MyToolWindow : EditorWindow
                 }
             }
             evt.Use();
+        }
+
+        // Eğer kullanıcı elle yazdıysa, sadece "Enter" tuşuna bastığında kabul et
+        if (tempModelPath != modelPath && evt.isKey && evt.keyCode == KeyCode.Return)
+        {
+            modelPath = tempModelPath;
+            ProcessModelPath();
         }
 
         // === CONFIG DOSYASI ===
@@ -109,13 +122,13 @@ internal class MyToolWindow : EditorWindow
             evt.Use();
         }
 
-        bool inputsFilled = !string.IsNullOrEmpty(modelPath) && File.Exists(modelPath) && !string.IsNullOrEmpty(configPath) && File.Exists(configPath);
+        bool inputsFilled = !string.IsNullOrEmpty(modelPath)  && !string.IsNullOrEmpty(configPath) ;
 
         // Eğer yeni bir dosya seçilmişse path'i güncelle ve dönüşüm uygula
         if (!string.IsNullOrEmpty(newModelPath) && newModelPath != modelPath)
         {
             modelPath = newModelPath;
-            UnityEngine.Debug.Log("New model path selected: " + modelPath);
+            //UnityEngine.Debug.Log("New model path selected: " + modelPath);
 
             if (modelPath.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase))
             {
@@ -143,6 +156,7 @@ internal class MyToolWindow : EditorWindow
 
         if (GUILayout.Button("Create Configs"))
         {
+            UnityEngine.Debug.Log("Create Configs clicked");
             ConfigRequest postData = new ConfigRequest
             {
                 obj_path = objPath,
@@ -188,8 +202,6 @@ internal class MyToolWindow : EditorWindow
 
         using (UnityWebRequest www = UnityWebRequest.PostWwwForm(url, "POST"))
         {
-            //www.timeout = 30;
-
             byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
             www.uploadHandler = new UploadHandlerRaw(bodyRaw);
             www.downloadHandler = new DownloadHandlerBuffer();
@@ -347,4 +359,26 @@ internal class MyToolWindow : EditorWindow
             UnityEngine.Debug.LogError("Explorer launch failed: " + ex.Message);
         }
     }
+
+    void ProcessModelPath()
+    {
+        UnityEngine.Debug.Log("New model path selected: " + modelPath);
+
+        if (modelPath.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase))
+        {
+            (objPath, mtlPath) = FBXtoOBJExporter.ConvertExternalFBX(modelPath);
+            if (!string.IsNullOrEmpty(objPath))
+                UnityEngine.Debug.Log("FBX conversion succeeded. OBJ: " + objPath + " | MTL: " + mtlPath);
+            else
+                UnityEngine.Debug.LogError("FBX conversion failed.");
+        }
+        else if (modelPath.EndsWith(".obj", StringComparison.OrdinalIgnoreCase))
+        {
+            objPath = modelPath;
+            mtlPath = "";
+            UnityEngine.Debug.Log(".obj selected. OBJ path: " + objPath);
+        }
+    }
+
+
 }

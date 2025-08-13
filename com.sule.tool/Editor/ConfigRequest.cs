@@ -9,7 +9,6 @@ public class ConfigRequest
     public string config_path;
 }
 
-
 public class CreatorRequest
 {
     public string base_map;
