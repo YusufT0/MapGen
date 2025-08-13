@@ -251,16 +251,17 @@ class SceneManager:
         self.base_scene = load_scene(self.base_map)
     
     def process_all_scenes(self):
-        """
-        Process all configuration files and export scenes.
-        """
         config_files = self.config_processor.get_config_files()
         
         for config_file in config_files:
             config = self.config_processor.load_config(config_file)
-            self.base_scene = apply_landscape(config, self.landscape_builder, self.base_scene)
-            scene = build_scene(config, self.shape_factory, self.base_scene)
-            export_scene(scene, config.map, self.output_folder)
+            
+            # Load a fresh copy of the base scene for each config
+            fresh_base_scene = load_scene(self.base_map)
+            
+            scene_with_landscape = apply_landscape(config, self.landscape_builder, fresh_base_scene)
+            final_scene = build_scene(config, self.shape_factory, scene_with_landscape)
+            export_scene(final_scene, config.map, self.output_folder)
 
 
 

@@ -38,8 +38,8 @@
               "color": {
                 "type": "array",
                 "items": { "type": "integer", "minimum": 0, "maximum": 255 },
-                "minItems": 4,
-                "maxItems": 4
+                "minItems": 3,
+                "maxItems": 3
               }
             },
             "required": ["type", "model", "scale", "count"],
