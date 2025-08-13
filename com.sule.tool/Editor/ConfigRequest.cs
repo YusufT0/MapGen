@@ -8,3 +8,8 @@ public class ConfigRequest
     public string mtl_path;
     public string config_path;
 }
+
+public class CreatorRequest
+{
+    public string base_map;
+}

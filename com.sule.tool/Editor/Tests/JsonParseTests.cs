@@ -2,6 +2,7 @@ using System.Collections;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using System.Text.RegularExpressions;
 
 public class JsonParseTests
 {
@@ -21,7 +22,7 @@ public class JsonParseTests
     [Test]
     public void ParsePathFromJson_InvalidJson_ReturnsNull()
     {
-        LogAssert.Expect(LogType.Error, "JSON can not parsed: {invalid json}");
+        LogAssert.Expect(LogType.Error, new Regex("JSON could not be parsed.*"));
 
         string invalidJson = "{invalid json}";
         string result = MyToolWindow.ParsePathFromJson(invalidJson);
