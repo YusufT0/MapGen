@@ -1,11 +1,17 @@
 map_count: 3
-output_type: obj
+output_type: glb
 augmentations:
+  - type: add_model
+    model: custom
+    custom_path: "./rock.obj"
+    scale: 0.5
+    count: 10
+    position: random
   - type: add_model
     model: custom
     custom_path: "./Lowpoly_tree_sample.obj"
     scale: 0.05
-    count: 20
+    count: 10
     position: random
   - type: landscape
     position: random

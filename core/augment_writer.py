@@ -2,6 +2,7 @@ import numpy as np
 import trimesh
 from pathlib import Path
 from abc import ABC, abstractmethod
+import shutil
 from core.reader import load_map_config, load_scene
 from trimesh.transformations import translation_matrix, scale_matrix
 from core.augment_tool import control_random_creation
@@ -64,18 +65,35 @@ class ConeCreator(ShapeCreator):
 
 class CustomModelCreator(ShapeCreator):
     """
-    Creates shapes from custom model files.
+    Creates shapes from custom model files with MTL support.
     """
+    
+    def __init__(self):
+        self.used_mtl_files = set()  # Track MTL files we need to handle
     
     def create_shape(self, obj_conf) -> trimesh.Trimesh:
         # Load custom model 
         mesh = trimesh.load(obj_conf.model_path)
         
+        # Track the MTL file if it exists
+        self._track_mtl_file(obj_conf.model_path)
+        
         # Only apply scale and position for custom models (they have their own materials)
         mesh.apply_transform(scale_matrix(obj_conf.scale))
         mesh.apply_transform(translation_matrix(obj_conf.position))
         
+        # Add metadata for unique naming
+        mesh.metadata['original_name'] = getattr(obj_conf, 'name', 'CustomObject')
+        
         return mesh
+    
+    def _track_mtl_file(self, obj_path):
+        """Track MTL files that need to be copied during export"""
+        obj_path = Path(obj_path)
+        mtl_path = obj_path.with_suffix('.mtl')
+        
+        if mtl_path.exists():
+            self.used_mtl_files.add(mtl_path)
     
     def _apply_transformations(self, mesh, obj_conf):
         """
@@ -86,6 +104,15 @@ class CustomModelCreator(ShapeCreator):
         mesh.apply_transform(translation_matrix(obj_conf.position))
         
         return mesh
+    
+    def get_used_mtl_files(self):
+        """Get list of MTL files that were used"""
+        return list(self.used_mtl_files)
+    
+    def reset_mtl_tracking(self):
+        """Reset MTL tracking for new scene"""
+        self.used_mtl_files.clear()
+
 
 class ShapeFactory:
     """
@@ -116,10 +143,23 @@ class ShapeFactory:
     def register_creator(self, model_type: str, creator: ShapeCreator):
         """Register a new shape creator."""
         self._creators[model_type] = creator
+    
+    def get_used_mtl_files(self):
+        """Get all MTL files used by custom model creators"""
+        all_mtl_files = set()
+        for creator in self._creators.values():
+            if hasattr(creator, 'get_used_mtl_files'):
+                all_mtl_files.update(creator.get_used_mtl_files())
+        return list(all_mtl_files)
+    
+    def reset_mtl_tracking(self):
+        """Reset MTL tracking for all creators"""
+        for creator in self._creators.values():
+            if hasattr(creator, 'reset_mtl_tracking'):
+                creator.reset_mtl_tracking()
 
 
 def apply_landscape(config, landscape_builder, base_scene):
-
     for land in config.landscapes:
         new_mesh = landscape_builder.create_landscape(base_scene, land)
         geom_name = next(iter(base_scene.geometry.keys()))
@@ -135,22 +175,81 @@ def build_scene(config, shape_factory, base_scene):
     Do it for all the objects that map configuration contains.
     """
     mesh = next(iter(base_scene.geometry.values()))
-    for obj in config.objects:
+    for i, obj in enumerate(config.objects):
         new_y = control_random_creation(obj.position[0], obj.position[1], obj.position[2], mesh) + (obj.scale / 2)
         obj.position[1] = new_y
         shape = shape_factory.create_shape(obj)
-        base_scene.add_geometry(shape)
+        
+        # Create unique node name for each object
+        object_name = getattr(obj, 'name', f'Object_{i:03d}')
+        base_scene.add_geometry(shape, node_name=object_name)
     return base_scene
 
-def export_scene(scene, filename, output_folder="maps"):
+
+def _merge_mtl_files(mtl_files, output_path):
+    """Merge multiple MTL files into one, handling name conflicts"""
+    merged_materials = {}
+    
+    for mtl_file in mtl_files:
+        with open(mtl_file, 'r') as f:
+            content = f.read()
+            
+        # Simple parsing to extract material names and avoid conflicts
+        current_material = None
+        for line in content.split('\n'):
+            line = line.strip()
+            if line.startswith('newmtl '):
+                material_name = line.split(' ', 1)[1]
+                # Add prefix to avoid conflicts between different models
+                model_prefix = Path(mtl_file).stem
+                unique_name = f"{model_prefix}_{material_name}"
+                merged_materials[unique_name] = []
+                current_material = unique_name
+                merged_materials[current_material].append(f"newmtl {unique_name}")
+            elif current_material and line and not line.startswith('#'):
+                merged_materials[current_material].append(line)
+    
+    # Write merged MTL file
+    with open(output_path, 'w') as f:
+        f.write("# Merged MTL file from multiple custom models\n\n")
+        for material_name, lines in merged_materials.items():
+            for line in lines:
+                f.write(line + '\n')
+            f.write('\n')
+
+
+def export_scene(scene, filename, output_folder="maps", shape_factory=None):
     """
     Go into the output folder. If it's not exists create one.
-    Then export the scene to the output folder with the correspounding filename
+    Then export the scene to the output folder with the corresponding filename.
     The filename is going to be created uniquely when the entry code is executed.
+    Enhanced to handle MTL files from custom models for OBJ exports only.
     """
-
     Path(output_folder).mkdir(exist_ok=True)
-    scene.export(f"{output_folder}/{filename}")
+    
+    # Export the scene
+    output_path = f"{output_folder}/{filename}"
+    
+    # Determine file extension from filename
+    file_path = Path(filename)
+    file_extension = file_path.suffix.lower()
+
+    # Export the scene with the proper filename
+    scene.export(f"{output_path}")
+    
+    # Only handle MTL files for OBJ exports
+    if file_extension == '.obj' and shape_factory:
+        mtl_files = shape_factory.get_used_mtl_files()
+        
+        if mtl_files:
+            # Get the base name without extension for MTL file
+            base_name = file_path.stem if file_path.suffix else filename
+            merged_mtl_path = f"{output_folder}/{base_name}.mtl"
+            _merge_mtl_files(mtl_files, merged_mtl_path)
+            print(f"Created MTL file for OBJ export: {base_name}.mtl with {len(mtl_files)} source materials")
+    elif file_extension != '.obj' and shape_factory and shape_factory.get_used_mtl_files():
+        print(f"Note: MTL materials not applicable for {file_extension} format - materials embedded in file format")
+
 
 
 
@@ -168,17 +267,16 @@ class ConfigProcessor:
         """Load a single configuration file."""
         return load_map_config(str(config_file))
 
+
 class LandScapeBuilder:
     def __init__(self):
         pass
         
     def create_landscape(self, scene, landscape_config):
-
         mesh = next(iter(scene.geometry.values()))
         position = list(landscape_config.position)
         smoothness = float(landscape_config.smoothness)
         radius = float(landscape_config.radius)
-
 
         vertices = mesh.vertices.copy()
         peak_x, peak_y, peak_z = position[0], position[1], position[2]
@@ -232,8 +330,6 @@ class LandScapeBuilder:
         return mesh
 
 
-
-    
 class SceneManager:
     """
     Main orchestrator class that coordinates all components.
@@ -256,13 +352,17 @@ class SceneManager:
         for config_file in config_files:
             config = self.config_processor.load_config(config_file)
             
+            # Reset MTL tracking for each new scene
+            self.shape_factory.reset_mtl_tracking()
+            
             # Load a fresh copy of the base scene for each config
             fresh_base_scene = load_scene(self.base_map)
             
             scene_with_landscape = apply_landscape(config, self.landscape_builder, fresh_base_scene)
             final_scene = build_scene(config, self.shape_factory, scene_with_landscape)
-            export_scene(final_scene, config.map, self.output_folder)
-
+            
+            # Pass shape_factory to export_scene for MTL handling
+            export_scene(final_scene, config.map, self.output_folder, self.shape_factory)
 
 
 def run_scene_builder(config_folder="./configs", base_map="./map.obj", output_folder="./maps"):
