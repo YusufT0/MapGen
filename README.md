@@ -17,7 +17,7 @@ This project enables users to:
 ## 🧑‍💻 Unity Editor Interface
 
 Accessible from the Unity menu:  
-**`Tools > My Tool UI`**
+**`Tools > MapGen`**
 
 ### 1. 📂 Input Fields for Models and Configs
 
