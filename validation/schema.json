@@ -4,7 +4,7 @@
     "map_count": { "type": "integer" },
     "output_type": {
       "type": "string",
-      "enum": ["glb", "gltf", "obj"]
+      "enum": ["glb", "stl", "obj"]
     },
     "augmentations": {
       "type": "array",

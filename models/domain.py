@@ -25,7 +25,7 @@ class LandscapeConfig(BaseAugmentConfig):
 
 class MainConfig(BaseModel):
     map_count: int
-    output_type: Literal["glb", "gltf", "obj"]
+    output_type: Literal["glb", "stl", "obj"]
     augmentations: List[Union[AddModelConfig, LandscapeConfig]]
 
 
