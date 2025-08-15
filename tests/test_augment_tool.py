@@ -1,14 +1,26 @@
 import pytest
 from core.augment_tool import augment, AugmenterRegistry, ModelAdder, LandScape, control_collision
-from models.domain import ModelObject
+from models.domain import CustomModelObject, StandardModelObject
 
-class DummyAug:
-    def __init__(self, type_, count=1, position="random", scale=1.0, model="tree"):
+class DummyCustAug:
+    def __init__(self, type_, count=1, position="random", scale=1.0, model="custom", custom_path = "./folder"):
         self.type = type_
         self.count = count
         self.position = position
         self.scale = scale
         self.model = model
+        self.custom_path = custom_path
+
+
+class DummyStandartAug:
+    def __init__(self, type_, count=1, position="random", scale=1.0, model="cube", color = [0,0,0]):
+        self.type = type_
+        self.count = count
+        self.position = position
+        self.scale = scale
+        self.model = model
+        self.color = color
+
 
 class DummyMesh:
     def __init__(self):
@@ -29,23 +41,36 @@ def test_registry_register_and_get():
     assert AugmenterRegistry.get("nonexistent") is None
 
 
-def test_augment_add_model_random_position():
+def test_augment_add_model_custom_random_position():
     bounds = [(0,0,0),(100,100,100)]
     mesh = DummyMesh()
-    aug = DummyAug("add_model", count=2, position="random", scale=1.0)
+    aug = DummyCustAug("add_model", count=2, position="random", scale=1.0, custom_path = "./folder")
     results = augment(bounds, aug, mesh)
     assert len(results) == 2
     for obj in results:
-        assert isinstance(obj, ModelObject)
-        assert obj.model == "tree"
+        assert isinstance(obj, CustomModelObject)
+        assert obj.model == "custom"
         assert len(obj.position) == 3
+
+def test_augment_add_model_standart_random_position():
+    bounds = [(0,0,0),(100,100,100)]
+    mesh = DummyMesh()
+    aug = DummyStandartAug("add_model", count=2, position="random", scale=1.0, color= [0,0,0])
+    results = augment(bounds, aug, mesh)
+    assert len(results) == 2
+    for obj in results:
+        assert isinstance(obj, StandardModelObject)
+        assert obj.model == "cube"
+        assert len(obj.position) == 3
+
+
 
 
 def test_augment_add_model_fixed_position():
     bounds = [(0,0,0),(10,10,10)]
     mesh = DummyMesh()
     fixed_pos = [1.0, 2.0, 3.0]
-    aug = DummyAug("add_model", count=1, position=fixed_pos, scale=1.0)
+    aug = DummyStandartAug("add_model", count=1, position=fixed_pos, scale=1.0, color=[0,0,0])
     results = augment(bounds, aug, mesh)
     assert len(results) == 1
     assert results[0].position == fixed_pos
@@ -54,13 +79,13 @@ def test_augment_add_model_fixed_position():
 def test_augment_unknown_type_raises():
     bounds = [(0,0,0),(100,100,100)]
     mesh = DummyMesh()
-    aug = DummyAug("unknown_type")
+    aug = DummyStandartAug("unknown_type")
     with pytest.raises(ValueError):
         augment(bounds, aug, mesh)
 
 def test_control_collision_with_collision():
     placed_objects = [
-        ModelObject(model="tree.obj", position=[0, 0, 0], scale=1.0)
+        StandardModelObject(model="cube", position=[0, 0, 0], scale=1.0, color = [25,25,25])
     ]
     new_pos = [0.2, 0, 0]  # Yakın, çakışmalı
     new_scale = 1.0
@@ -70,7 +95,7 @@ def test_control_collision_with_collision():
 
 def test_control_collision_without_collision():
     placed_objects = [
-        ModelObject(model="tree.obj", position=[0, 0, 0], scale=1.0)
+        StandardModelObject(model="cube", position=[0, 0, 0], scale=1.0, color = [25,25,25])
     ]
     new_pos = [3.0, 0, 0]  # Uzak, çakışmaz
     new_scale = 1.0

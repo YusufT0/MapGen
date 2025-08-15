@@ -8,14 +8,19 @@ from core.augment_writer import (  # change this to your actual module path
     ShapeFactory, ConfigProcessor,build_scene, export_scene,run_scene_builder, SceneManager
 )
 
-class DummyConf:
+class DummyStandConf:
     def __init__(self, model, color=[1,1,1,255], scale=1.0, position=[0,0,0], model_path=None):
         self.model = model
         self.color = color
         self.scale = scale
         self.position = position
+class DummyCustConf:
+    def __init__(self, model, scale=1.0, position=[0,0,0], model_path=None):
+        self.model = model
+        self.scale = scale
+        self.position = position
         self.model_path = model_path
-
+        
 
 @pytest.mark.parametrize("creator_cls,expected_type", [
     (CubeCreator, trimesh.Trimesh),
@@ -24,7 +29,7 @@ class DummyConf:
     (ConeCreator, trimesh.Trimesh),
 ])
 def test_basic_shape_creators_apply_transformations(creator_cls, expected_type):
-    obj_conf = DummyConf(model="cube")
+    obj_conf = DummyStandConf(model="cube")
     creator = creator_cls()
     mesh = creator.create_shape(obj_conf)
     assert isinstance(mesh, expected_type)
@@ -34,7 +39,7 @@ def test_custom_model_creator_loads_file(monkeypatch):
     fake_mesh = MagicMock(spec=trimesh.Trimesh)
     monkeypatch.setattr(trimesh, "load", lambda path: fake_mesh)
 
-    obj_conf = DummyConf(model="custom", model_path="fake.obj")
+    obj_conf = DummyCustConf(model="custom", model_path="fake.obj")
     creator = CustomModelCreator()
     mesh = creator.create_shape(obj_conf)
     assert mesh is fake_mesh
@@ -43,7 +48,7 @@ def test_custom_model_creator_loads_file(monkeypatch):
 # ---- ShapeFactory Tests ----
 def test_shape_factory_create_shape():
     factory = ShapeFactory()
-    conf = DummyConf(model="sphere")
+    conf = DummyStandConf(model="sphere")
     shape = factory.create_shape(conf)
     assert isinstance(shape, trimesh.Trimesh)
 
@@ -52,7 +57,7 @@ def test_shape_factory_register_creator():
     factory = ShapeFactory()
     fake_creator = MagicMock()
     factory.register_creator("weird", fake_creator)
-    conf = DummyConf(model="weird")
+    conf = DummyStandConf(model="weird")
     factory.create_shape(conf)
     
     fake_creator.create_shape.assert_called_once_with(conf)
@@ -60,7 +65,7 @@ def test_shape_factory_register_creator():
 def test_shape_factory_unsupported_type():
     factory = ShapeFactory()
     with pytest.raises(ValueError):
-        factory.create_shape(DummyConf(model="idontexist"))
+        factory.create_shape(DummyStandConf(model="idontexist"))
 
 
 def test_export_scene_creates_folder_and_exports():
