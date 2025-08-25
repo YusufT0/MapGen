@@ -1,10 +1,10 @@
-# 🗺️ MapGen - Map Generation Tool Using Unity & Python
+#  MapGen - Map Generation Tool Using Unity & Python
 
 **MapGen** is a tool developed with Unity and Python (FastAPI) that allows users to generate configurations and maps from 3D models. The main goal is to augment scenes with map data through an easy-to-use interface.
 
 ---
 
-## 🎯 Purpose
+##  Purpose
 
 This project enables users to:
 
@@ -14,12 +14,12 @@ This project enables users to:
 
 ---
 
-## 🧑‍💻 Unity Editor Interface
+##  Unity Editor Interface
 
 Accessible from the Unity menu:  
 **`Tools > MapGen`**
 
-### 1. 📂 Input Fields for Models and Configs
+### 1.  Input Fields for Models and Configs
 
 Users can add 3D model and config files in three different ways:
 - By selecting a file via File Explorer
@@ -29,7 +29,7 @@ Users can add 3D model and config files in three different ways:
 > **Supported model formats**: `.fbx`, `.obj`  
 > **Supported config formats**: `.yaml`, `.yml`
 
-### 2. 🔘 Buttons and Actions
+### 2.  Buttons and Actions
 
 | Button            | Function |
 |-------------------|----------|
@@ -40,18 +40,18 @@ Users can add 3D model and config files in three different ways:
 
 ---
 
-## 🔄 Conversion Logic
+##  Conversion Logic
 
 - `.fbx` files are converted **manually** into `.obj` and `.mtl` inside Unity via a custom C# class.
 - No external tools such as Blender or Assimp are used.
 
 ---
 
-## 🌐 Python Backend (FastAPI)
+##  Python Backend (FastAPI)
 
 The backend is built with FastAPI to receive HTTP requests from Unity and generate content.
 
-### 📡 API Endpoints
+###  API Endpoints
 
 | Method | Endpoint            | Description                        |
 |--------|---------------------|------------------------------------|
@@ -117,3 +117,17 @@ smoothness: random
 
 - Generates 3 randomly positioned landscapes.
 - position can be fixed again.
+
+---
+
+##  Docker
+- The backend service is containerized using Docker for easy deployment and scalability.
+- You can find the Docker image on Docker Hub: [Docker Repository](https://hub.docker.com/repositories/sule194)
+
+### Build Docker Image
+
+```
+docker pull sule194/mapgen-backend
+docker run -p 8000:8000 sule194/mapgen-backend
+```
+
