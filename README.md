@@ -18,6 +18,7 @@ This project enables users to:
 
 - Accessible from the Unity menu:  **`Tools > MapGen`**
 - Install the required Unity packages via Package Manager:
+  
   - Unity UI (for Event System)
   - Unity Test Framework (for running tests)
   - Editor Coroutines (for coroutine support in the editor)
