@@ -10,3 +10,4 @@ public interface IWebRequestHandler
     // GET isteði yapan metot
     IEnumerator Get(string url, Action<string> onSuccess, Action<string> onError);
 }
+

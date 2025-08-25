@@ -1,8 +1,8 @@
+using UnityEditor;
 using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Networking;
-using UnityEditor;
 using System.Diagnostics;
 using System.IO;
 using Unity.EditorCoroutines.Editor;
@@ -15,6 +15,11 @@ internal class MyToolWindow : EditorWindow
     internal string objPath = "";
     internal string mtlPath = "";
     internal string configPath = "";
+    internal string base_map = "";
+
+    internal string newModelPath = "";
+
+    internal bool showAbsolutePathWarning = false;
 
     string baseURL = "http://127.0.0.1:8000/";
 
@@ -34,14 +39,61 @@ internal class MyToolWindow : EditorWindow
     internal void OnGUI()
     {
         Event evt = Event.current;
-        string tempModelPath = modelPath;
 
         GUILayout.Label("Input Fields", EditorStyles.boldLabel);
 
         // === MODEL DOSYASI ===
         GUILayout.BeginHorizontal();
         Rect modelRect = GUILayoutUtility.GetRect(new GUIContent("Model"), GUI.skin.textField);
-        string newModelPath = EditorGUI.TextField(modelRect, "Model", modelPath);
+        GUI.SetNextControlName("Model");
+        newModelPath = EditorGUI.TextField(modelRect, "Model", newModelPath);
+
+        // Eğer kullanıcı elle yazdıysa, sadece "Enter" tuşuna bastığında kabul et
+        if (evt.isKey && evt.type == EventType.KeyDown && evt.keyCode == KeyCode.Return) 
+        {
+            string focused = GUI.GetNameOfFocusedControl();
+
+            if (focused == "Model")
+            {
+                if (!Path.IsPathRooted(newModelPath))
+                {
+                    PopupMessageManager("Warning", "Please enter absolute path");
+                }
+                else
+                {
+                    UnityEngine.Debug.Log("ModelDONE");
+                    modelPath = newModelPath;
+                    ProcessModelPath();
+                    
+                }
+            }
+            else if (focused == "Config (.yaml)")
+            {
+                if (!Path.IsPathRooted(configPath))
+                {
+                    PopupMessageManager("Warning", "Please enter absolute path");
+                }
+                else
+                {
+                    UnityEngine.Debug.Log("DONE");
+                    
+                }
+            }
+        }
+
+        void PopupMessageManager(string title, string message) 
+        {
+            showAbsolutePathWarning = true;
+
+            if (showAbsolutePathWarning)
+            {
+                  showAbsolutePathWarning = false; // sadece 1 kez çalışsın
+                  EditorApplication.delayCall += () =>
+                  {
+                  EditorUtility.DisplayDialog(title, message, "OK");
+                  };
+            }
+        }
 
         if (GUILayout.Button("Browse", GUILayout.MaxWidth(80)))
         {
@@ -67,30 +119,25 @@ internal class MyToolWindow : EditorWindow
                     string ext = Path.GetExtension(path).ToLower();
                     if (ext == ".fbx" || ext == ".obj")
                     {
+                        UnityEngine.Debug.Log("Model file dragged: " + path);
                         newModelPath = Path.GetFullPath(path); // Global path
                         modelPath = newModelPath;
-                        ProcessModelPath(); // dönüşüm fonksiyonu
-                        UnityEngine.Debug.Log("Model file dragged: " + path);
+                        ProcessModelPath(); // dönüşüm fonksiyonu   
                     }
                     else
                     {
                         UnityEngine.Debug.LogWarning("Unsupported file for model: " + path);
+                        PopupMessageManager("Warning", "Unsupported file for model");
                     }
                 }
             }
             evt.Use();
         }
 
-        // Eğer kullanıcı elle yazdıysa, sadece "Enter" tuşuna bastığında kabul et
-        if (tempModelPath != modelPath && evt.isKey && evt.keyCode == KeyCode.Return)
-        {
-            modelPath = tempModelPath;
-            ProcessModelPath();
-        }
-
         // === CONFIG DOSYASI ===
         GUILayout.BeginHorizontal();
         Rect configRect = GUILayoutUtility.GetRect(new GUIContent("Config (.yaml)"), GUI.skin.textField);
+        GUI.SetNextControlName("Config (.yaml)");
         configPath = EditorGUI.TextField(configRect, "Config (.yaml)", configPath);
 
         if (GUILayout.Button("Browse", GUILayout.MaxWidth(80)))
@@ -118,13 +165,15 @@ internal class MyToolWindow : EditorWindow
                     else
                     {
                         UnityEngine.Debug.LogWarning("Unsupported file for config: " + path);
+                        PopupMessageManager("Warning", "Unsupported file for config");
                     }
                 }
             }
             evt.Use();
         }
 
-        bool inputsFilled = !string.IsNullOrEmpty(modelPath)  && !string.IsNullOrEmpty(configPath) ;
+        bool inputsFilled = !string.IsNullOrEmpty(modelPath) && System.IO.Path.IsPathRooted(modelPath) &&
+        !string.IsNullOrEmpty(configPath) && System.IO.Path.IsPathRooted(configPath); ;
   
         EditorGUI.BeginDisabledGroup(!inputsFilled);
 
@@ -297,12 +346,6 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
-    [System.Serializable]
-    internal class PathResponse
-    {
-        public string path;
-    }
-
     internal virtual void OpenFolderInExplorer(string path)
     {
         if (string.IsNullOrEmpty(path))
@@ -336,7 +379,6 @@ internal class MyToolWindow : EditorWindow
 
     void ProcessModelPath()
     {
-        UnityEngine.Debug.Log("New model path selected: " + modelPath);
 
         if (modelPath.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase))
         {
@@ -353,5 +395,6 @@ internal class MyToolWindow : EditorWindow
             UnityEngine.Debug.Log(".obj selected. OBJ path: " + objPath);
         }
     }
+
 
 }

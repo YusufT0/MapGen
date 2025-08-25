@@ -1,0 +1,167 @@
+map: map_76859110.obj
+objects:
+- model: custom
+  scale: 0.05
+  position:
+  - -0.6590272628156191
+  - 1.0192342048769731
+  - 2.868975981118523
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - 2.988093919379902
+  - 0.5097624053091417
+  - -2.353999560169335
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - 4.174948231168812
+  - 0.7424117360445576
+  - 6.3260525694219725
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - -5.330376963813002
+  - 0.9555545191047657
+  - -1.0315539117608807
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - -6.432876010672322
+  - 0.7353212691322727
+  - -2.223592106946696
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - 4.052848233307233
+  - 0.5850309525269252
+  - -0.9089399453802836
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - -4.481205500052543
+  - 1.0353245253755863
+  - -4.716614683602595
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - -2.0731578158519275
+  - 1.1305646918978711
+  - -2.5546353564634003
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - -5.624547412597558
+  - 1.0694883820646155
+  - -7.158995874191926
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - 7.336993111709147
+  - 0.5204245478485457
+  - -2.174422219640876
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - -4.965364184725452
+  - 0.36890247845064716
+  - 0.701629415010685
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - -1.3670592804817296
+  - 0.7935362494642565
+  - 3.439056874816967
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - 5.17505317564165
+  - 0.5961122752012529
+  - -4.917924844631264
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - -6.686781568254106
+  - 1.1527935583659064
+  - -6.923068573826581
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - -1.9998291614894947
+  - 0.9568748208778461
+  - -4.730010052286847
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - 2.4521113464538837
+  - 0.9356586675986652
+  - -4.532488890554773
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - 6.509759649425699
+  - 1.8928048493368843
+  - 2.3300240182634893
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - 0.567982175503162
+  - 0.5073177093300641
+  - -1.9460475884392059
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - 5.375466705323153
+  - 0.4950740468927888
+  - -0.48405400725982695
+  model_path: ./Lowpoly_tree_sample.obj
+- model: custom
+  scale: 0.05
+  position:
+  - 3.582138158172314
+  - 1.3830822570776338
+  - -6.860416763935248
+  model_path: ./Lowpoly_tree_sample.obj
+landscapes:
+- position:
+  - -3.6872727907439797
+  - 2.1976588327504913
+  - 4.003349313859757
+  radius: 1.992686852068035
+  smoothness: 0.2992498437410205
+- position:
+  - -6.428549167884065
+  - 0.425297573578155
+  - -4.893874090518059
+  radius: 1.3651056275523674
+  smoothness: 0.7363572850573186
+- position:
+  - 0.43999090070871905
+  - 0.6742217412804916
+  - 7.38396315017263
+  radius: 0.11135970513887972
+  smoothness: 0.7549066459409394
+- position:
+  - 0.0
+  - -4.0
+  - 0.0
+  radius: 1.0
+  smoothness: 1.0

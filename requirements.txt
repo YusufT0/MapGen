@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+trimesh
+pydantic
+numpy
+PyYAML
+scipy
+jsonschema
