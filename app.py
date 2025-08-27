@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI , WebSocket , HTTPException
 from core.augment_tool import augment
 from core.reader import load_config, load_scene
 from core.augment_writer import run_scene_builder
@@ -9,9 +9,11 @@ from validation.schema_test import validate_config
 import trimesh
 import os
 import uuid
+import asyncio
 
 app = FastAPI()
 
+progress_store = {}  # task_id: progress
 
 folder_path = "./maps"
 os.makedirs(folder_path, exist_ok=True)
@@ -69,7 +71,10 @@ async def create_configs(data: ConfigInput):
 async def create_maps(data: CreatorInput):
     run_scene_builder(
         base_map=data.base_map or "./map.obj"
-    )
+        )
+    return {"status": "success", "message": "Maps created successfully."}
+
+
 @app.get("/get_map_path")
 async def get_map_path():
     return {"path": os.path.abspath("./maps")}
@@ -77,3 +82,35 @@ async def get_map_path():
 async def get_config_path():
     return {"path": os.path.abspath("./configs")}
 
+@app.get("/start_progress/{task_id}")
+async def start_progress(task_id: str):
+    if task_id in progress_store:
+        raise HTTPException(status_code=400, detail="Task already running")
+    progress_store[task_id] = 0.0
+    asyncio.create_task(simulate_progress(task_id))
+    return {"message": "Progress started", "task_id": task_id}
+
+async def simulate_progress(task_id: str):
+    try:
+        for i in range(20):
+            await asyncio.sleep(0.25)
+            progress_store[task_id] = (i + 1) / 20.0
+        progress_store[task_id] = 1.0
+    except Exception:
+        progress_store[task_id] = -1.0
+
+@app.websocket("/ws/progress/{task_id}")
+async def websocket_progress(websocket: WebSocket, task_id: str):
+    await websocket.accept()
+    try:
+        while True:
+            progress = progress_store.get(task_id, 0.0)
+            await websocket.send_json({"progress": progress})
+            if progress >= 1.0 or progress == -1.0:
+                break
+            await asyncio.sleep(0.2)
+    except Exception as e:
+        print("WebSocket Error:", e)
+    finally:
+        await websocket.close()
+        progress_store.pop(task_id, None)

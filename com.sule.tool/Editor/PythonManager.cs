@@ -1,3 +1,4 @@
+using NativeWebSocket;
 using UnityEditor;
 using System;
 using System.Collections;
@@ -8,6 +9,8 @@ using System.IO;
 using Unity.EditorCoroutines.Editor;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+
 
 internal class MyToolWindow : EditorWindow
 {
@@ -22,6 +25,12 @@ internal class MyToolWindow : EditorWindow
     internal bool showAbsolutePathWarning = false;
 
     string baseURL = "http://127.0.0.1:8000/";
+
+    // for Progress bar 
+    private bool showProgressBar = false;
+    private float progress = 0f;
+    private WebSocket webSocket;
+    private string currentTaskId = "";
 
     [MenuItem("Tools/MapGen")]
     public static void ShowWindow()
@@ -64,7 +73,6 @@ internal class MyToolWindow : EditorWindow
                     UnityEngine.Debug.Log("ModelDONE");
                     modelPath = newModelPath;
                     ProcessModelPath();
-                    
                 }
             }
             else if (focused == "Config (.yaml)")
@@ -76,7 +84,7 @@ internal class MyToolWindow : EditorWindow
                 else
                 {
                     UnityEngine.Debug.Log("DONE");
-                    
+
                 }
             }
         }
@@ -143,7 +151,10 @@ internal class MyToolWindow : EditorWindow
         if (GUILayout.Button("Browse", GUILayout.MaxWidth(80)))
         {
             string path = EditorUtility.OpenFilePanel("Select Config YAML", "", "yaml,yml");
-            if (!string.IsNullOrEmpty(path)) configPath = path;
+            if (!string.IsNullOrEmpty(path))
+            {
+                configPath = path;
+            }
         }
         GUILayout.EndHorizontal();
 
@@ -161,6 +172,7 @@ internal class MyToolWindow : EditorWindow
                     {
                         configPath = path;
                         UnityEngine.Debug.Log("Config file dragged: " + path);
+
                     }
                     else
                     {
@@ -182,9 +194,9 @@ internal class MyToolWindow : EditorWindow
             UnityEngine.Debug.Log("Create Configs clicked");
             ConfigRequest postData = new ConfigRequest
             {
-                obj_path = objPath,
-                mtl_path = mtlPath,
-                config_path = configPath
+                obj_path = objPath.Replace("\\", "/"),
+                mtl_path = mtlPath.Replace("\\", "/"),
+                config_path = configPath.Replace("\\", "/")
             };
 
             string json = JsonUtility.ToJson(postData);
@@ -200,20 +212,36 @@ internal class MyToolWindow : EditorWindow
         if (GUILayout.Button("Create Maps"))
         {
             UnityEngine.Debug.Log("Create Maps clicked");
-
-            CreatorRequest sendData = new CreatorRequest
-            {
-                base_map = objPath
-            };
-
-            string json = JsonUtility.ToJson(sendData);
-            Unity.EditorCoroutines.Editor.EditorCoroutineUtility.StartCoroutineOwnerless(SendCreateMapsRequest(json));
+            EditorCoroutineUtility.StartCoroutineOwnerless(CreateMapsAndListenProgress());
         }
+
 
         if (GUILayout.Button("Show Maps"))
         {
             UnityEngine.Debug.Log("Show Maps clicked");
             Unity.EditorCoroutines.Editor.EditorCoroutineUtility.StartCoroutineOwnerless(ShowMapsCoroutine());
+        }
+
+
+        if (webSocket != null && webSocket.State == WebSocketState.Open)
+        {
+            try
+            {
+                webSocket.DispatchMessageQueue();
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError("Exception during DispatchMessageQueue: " + ex.Message);
+            }
+        }
+
+        if (showProgressBar)
+        {
+            GUILayout.Space(10);
+            GUILayout.Label($"Map generation progress: {Mathf.RoundToInt(progress * 100)}%", EditorStyles.boldLabel);
+            Rect rect = GUILayoutUtility.GetRect(18, 18, "TextField");
+            EditorGUI.ProgressBar(rect, progress, "Progress");
+            Repaint();
         }
 
         EditorGUI.EndDisabledGroup();
@@ -235,7 +263,7 @@ internal class MyToolWindow : EditorWindow
             // HTTP isteği başarısızsa hata mesajı yaz
             if (www.result != UnityWebRequest.Result.Success)
             {
-                UnityEngine.Debug.LogError("Create Configs HTTP Error: " + www.error);
+                UnityEngine.Debug.LogError($"Error {www.responseCode}: {www.downloadHandler.text}");
             }
             else
             {
@@ -265,7 +293,6 @@ internal class MyToolWindow : EditorWindow
             UnityEngine.Debug.Log("Parsed Path: " + path);
 
             bool exists = Directory.Exists(path);
-            UnityEngine.Debug.Log("Directory.Exists: " + exists);
 
             if (!string.IsNullOrEmpty(path) && exists)
             {
@@ -279,27 +306,63 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
-    internal virtual IEnumerator SendCreateMapsRequest(string json)
+    internal virtual IEnumerator CreateMapsAndListenProgress()
     {
-        string url = baseURL + "create_maps";
+        currentTaskId = Guid.NewGuid().ToString();
+        showProgressBar = true;
+        progress = 0f;
 
-        var www = new UnityWebRequest(url, "POST");
-        byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
-        www.uploadHandler = new UploadHandlerRaw(bodyRaw);
-        www.downloadHandler = new DownloadHandlerBuffer();
-        www.SetRequestHeader("Content-Type", "application/json");
-
-        yield return www.SendWebRequest();
-
-        if (www.result != UnityWebRequest.Result.Success)
+        // 1. Start progress on backend
+        string startProgressUrl = baseURL + $"start_progress/{currentTaskId}";
+        using (UnityWebRequest www = UnityWebRequest.Get(startProgressUrl))
         {
-            UnityEngine.Debug.LogError("Create Maps HTTP Error: " + www.error);
+            yield return www.SendWebRequest();
+
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                UnityEngine.Debug.LogError("Failed to start progress: " + www.error);
+                showProgressBar = false;
+                yield break;
+            }
+            else
+            {
+                UnityEngine.Debug.Log("Started progress with task_id: " + currentTaskId);
+            }
         }
-        else
+
+        // 2. Send create_maps request (aynı task_id ile değil, backend bağımsız)
+        CreatorRequest sendData = new CreatorRequest
         {
-            UnityEngine.Debug.Log("Create Maps Response: " + www.downloadHandler.text);
+            base_map = objPath.Replace("\\", "/")
+        };
+
+        string json = JsonUtility.ToJson(sendData);
+
+        using (UnityWebRequest www = new UnityWebRequest(baseURL + "create_maps", "POST"))
+        {
+            byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
+            www.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            www.downloadHandler = new DownloadHandlerBuffer();
+            www.SetRequestHeader("Content-Type", "application/json");
+
+            yield return www.SendWebRequest();
+
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                UnityEngine.Debug.LogError($"Error {www.responseCode}: {www.downloadHandler.text}");
+                showProgressBar = false;
+                yield break;
+            }
+            else
+            {
+                UnityEngine.Debug.Log("Create Maps Response: " + www.downloadHandler.text);
+            }
         }
+
+        // 3. WebSocket ile ilerleme dinle
+        yield return WaitForTask(ListenProgressWebSocket(currentTaskId));
     }
+
 
     internal virtual IEnumerator ShowMapsCoroutine()
     {
@@ -358,7 +421,6 @@ internal class MyToolWindow : EditorWindow
         {
             string winPath = path.Replace("/", "\\");
             UnityEngine.Debug.Log("Trying to open folder: " + winPath);
-            UnityEngine.Debug.Log("Folder exists? " + Directory.Exists(winPath));
 
             var psi = new ProcessStartInfo()
             {
@@ -395,6 +457,111 @@ internal class MyToolWindow : EditorWindow
             UnityEngine.Debug.Log(".obj selected. OBJ path: " + objPath);
         }
     }
+
+    private async Task ListenProgressWebSocket(string taskId)
+    {
+        if (string.IsNullOrEmpty(taskId))
+        {
+            UnityEngine.Debug.LogError("Task ID is null or empty. Aborting WebSocket connection.");
+            return;
+        }
+
+        string wsUrl = $"ws://127.0.0.1:8000/ws/progress/{taskId}";
+        UnityEngine.Debug.Log($"Attempting WebSocket connection to: {wsUrl}");
+
+        webSocket = new WebSocket(wsUrl);
+
+        webSocket.OnOpen += () =>
+        {
+            UnityEngine.Debug.Log("WebSocket connection opened.");
+        };
+
+        webSocket.OnClose += (e) =>
+        {
+            UnityEngine.Debug.Log("WebSocket connection closed.");
+            showProgressBar = false;
+        };
+
+
+        webSocket.OnError += (e) =>
+        {
+            //TODO
+        };
+
+
+        webSocket.OnMessage += async (bytes) =>
+        {
+            string message = System.Text.Encoding.UTF8.GetString(bytes);
+
+            if (string.IsNullOrWhiteSpace(message)) return;
+
+            var msg = JsonUtility.FromJson<ProgressMessage>(message);
+            if (msg == null)
+            {
+                UnityEngine.Debug.LogError("JSON parse failed. Raw: " + message);
+                return;
+            }
+
+            progress = Mathf.Clamp01(msg.progress);
+
+            if (progress >= 1f)
+            {
+                UnityEngine.Debug.Log("Progress complete.");
+                showProgressBar = false;
+
+                await CloseWebSocketSafely();
+            }
+        };
+
+        try
+        {
+            await webSocket.Connect();
+            UnityEngine.Debug.Log("WebSocket successfully connected.");
+        }
+        catch (Exception ex)
+        {
+            UnityEngine.Debug.LogError("WebSocket connect exception: " + ex.Message);
+            showProgressBar = false;
+            return;
+        }
+
+
+        while (webSocket != null && webSocket.State == WebSocketState.Open)
+        {
+            webSocket.DispatchMessageQueue();
+            await Task.Delay(100);
+        }
+
+        UnityEngine.Debug.Log("WebSocket closed and cleaned up.");
+        webSocket = null;
+    }
+
+
+
+    private IEnumerator WaitForTask(Task task)
+    {
+        while (!task.IsCompleted)
+            yield return null;
+
+        if (task.IsFaulted)
+            UnityEngine.Debug.LogError(task.Exception);
+    }
+
+    private async Task CloseWebSocketSafely()
+    {
+        if (webSocket != null && webSocket.State == WebSocketState.Open)
+        {
+            try
+            {
+                await webSocket.Close();
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError("Exception during WebSocket close: " + ex.Message);
+            }
+        }
+    }
+
 
 
 }

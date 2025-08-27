@@ -20,7 +20,8 @@ internal class PathResponse
     public string path;
 }
 
-public class ProgressData
+[Serializable]
+public class ProgressMessage
 {
     public float progress;
 }

@@ -2,7 +2,8 @@
     "name": "EditorAsm",
     "rootNamespace": "",
     "references": [
-        "GUID:478a2357cc57436488a56e564b08d223"
+        "GUID:478a2357cc57436488a56e564b08d223",
+        "GUID:04376767bc1f3b428aefa3d20743e819"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
