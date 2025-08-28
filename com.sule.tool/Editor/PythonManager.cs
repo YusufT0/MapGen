@@ -23,6 +23,8 @@ internal class MyToolWindow : EditorWindow
     internal string newModelPath = "";
 
     internal bool showAbsolutePathWarning = false;
+    private bool showConfigFoldout;
+    private bool showMapFoldout;
 
     string baseURL = "http://127.0.0.1:8000/";
 
@@ -43,6 +45,12 @@ internal class MyToolWindow : EditorWindow
     internal void SetRequestHandler(IWebRequestHandler handler)
     {
         this.requestHandler = handler;
+    }
+
+    private void OnEnable()
+    {
+        showConfigFoldout = false;
+        showMapFoldout = false;
     }
 
     internal void OnGUI()
@@ -189,37 +197,66 @@ internal class MyToolWindow : EditorWindow
   
         EditorGUI.BeginDisabledGroup(!inputsFilled);
 
-        if (GUILayout.Button("Create Configs"))
+        showConfigFoldout = EditorGUILayout.Foldout(showConfigFoldout, "Config Management", true);
+        if (showConfigFoldout)
         {
-            UnityEngine.Debug.Log("Create Configs clicked");
-            ConfigRequest postData = new ConfigRequest
+            EditorGUI.indentLevel++;
+
+            if (GUILayout.Button("Create Configs"))
             {
-                obj_path = objPath.Replace("\\", "/"),
-                mtl_path = mtlPath.Replace("\\", "/"),
-                config_path = configPath.Replace("\\", "/")
-            };
+                UnityEngine.Debug.Log("Create Configs clicked");
+                ConfigRequest postData = new ConfigRequest
+                {
+                    obj_path = objPath.Replace("\\", "/"),
+                    mtl_path = mtlPath.Replace("\\", "/"),
+                    config_path = configPath.Replace("\\", "/")
+                };
 
-            string json = JsonUtility.ToJson(postData);
-            Unity.EditorCoroutines.Editor.EditorCoroutineUtility.StartCoroutineOwnerless(SendCreateConfigsRequest(json));
+                string json = JsonUtility.ToJson(postData);
+                EditorCoroutineUtility.StartCoroutineOwnerless(SendCreateConfigsRequest(json));
+            }
+
+            if (GUILayout.Button("Show Configs"))
+            {
+                UnityEngine.Debug.Log("Show Configs clicked");
+                EditorCoroutineUtility.StartCoroutineOwnerless(ShowConfigsCoroutine());
+            }
+
+            if (GUILayout.Button("Clear Configs"))
+            {
+                UnityEngine.Debug.Log("Clear Configs clicked");
+                EditorCoroutineUtility.StartCoroutineOwnerless(ClearDirectoryCoroutine("clear_configs"));
+            }
+
+            EditorGUI.indentLevel--;
         }
 
-        if (GUILayout.Button("Show Configs"))
-        {
-            UnityEngine.Debug.Log("Show Configs clicked");
-            Unity.EditorCoroutines.Editor.EditorCoroutineUtility.StartCoroutineOwnerless(ShowConfigsCoroutine());
-        }
 
-        if (GUILayout.Button("Create Maps"))
+        // === MAP FOLDOUT ===
+        showMapFoldout = EditorGUILayout.Foldout(showMapFoldout, "Map Management", true);
+        if (showMapFoldout)
         {
-            UnityEngine.Debug.Log("Create Maps clicked");
-            EditorCoroutineUtility.StartCoroutineOwnerless(CreateMapsAndListenProgress());
-        }
+            EditorGUI.indentLevel++;
 
+            if (GUILayout.Button("Create Maps"))
+            {
+                UnityEngine.Debug.Log("Create Maps clicked");
+                EditorCoroutineUtility.StartCoroutineOwnerless(CreateMapsAndListenProgress());
+            }
 
-        if (GUILayout.Button("Show Maps"))
-        {
-            UnityEngine.Debug.Log("Show Maps clicked");
-            Unity.EditorCoroutines.Editor.EditorCoroutineUtility.StartCoroutineOwnerless(ShowMapsCoroutine());
+            if (GUILayout.Button("Show Maps"))
+            {
+                UnityEngine.Debug.Log("Show Maps clicked");
+                EditorCoroutineUtility.StartCoroutineOwnerless(ShowMapsCoroutine());
+            }
+
+            if (GUILayout.Button("Clear Maps"))
+            {
+                UnityEngine.Debug.Log("Clear Maps clicked");
+                EditorCoroutineUtility.StartCoroutineOwnerless(ClearDirectoryCoroutine("clear_maps"));
+            }
+
+            EditorGUI.indentLevel--;
         }
 
 
@@ -305,6 +342,26 @@ internal class MyToolWindow : EditorWindow
             }
         }
     }
+
+    private IEnumerator ClearDirectoryCoroutine(string endpoint)
+    {
+        string url = baseURL + endpoint;
+
+        using (UnityWebRequest www = UnityWebRequest.Delete(url))
+        {
+            yield return www.SendWebRequest();
+
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                UnityEngine.Debug.LogError("Clear failed: " + www.error);
+            }
+            else
+            {
+                UnityEngine.Debug.Log($"{endpoint} cleared successfully.");
+            }
+        }
+    }
+
 
     internal virtual IEnumerator CreateMapsAndListenProgress()
     {

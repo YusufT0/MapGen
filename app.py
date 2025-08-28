@@ -114,3 +114,24 @@ async def websocket_progress(websocket: WebSocket, task_id: str):
     finally:
         await websocket.close()
         progress_store.pop(task_id, None)
+
+
+def clear_directory_but_keep_info_txt(directory_path):
+    for filename in os.listdir(directory_path):
+        file_path = os.path.join(directory_path, filename)
+        if os.path.isfile(file_path) and filename != "info.txt":
+            try:
+                os.remove(file_path)
+                print(f"Deleted file: {filename}")
+            except Exception as e:
+                print(f"Error deleting {filename}: {e}")
+
+@app.delete("/clear_configs")
+def clear_configs():
+    clear_directory_but_keep_info_txt("./configs")
+    return {"status": "configs content cleared"}
+
+@app.delete("/clear_maps")
+def clear_maps():
+    clear_directory_but_keep_info_txt("./maps")
+    return {"status": "maps content cleared"}
