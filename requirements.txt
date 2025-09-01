@@ -6,3 +6,6 @@ numpy
 PyYAML
 scipy
 jsonschema
+python-multipart
+rtree
+websockets
