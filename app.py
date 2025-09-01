@@ -1,11 +1,12 @@
-from fastapi import FastAPI , WebSocket , HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File , BackgroundTasks
+from fastapi.responses import JSONResponse, FileResponse
 from core.augment_tool import augment
-from core.reader import load_config, load_scene
-from core.augment_writer import run_scene_builder
+from core.reader import load_config, load_scene, load_uploaded_config
+from core.augment_writer import run_scene_builder, progress_store, progress_lock 
 from models.api import ConfigInput, CreatorInput
 from models.domain import MapConfig
 from core.writer import write_config
-from validation.schema_test import validate_config 
+from validation.schema_test import validate_config
 import trimesh
 import os
 import uuid
@@ -13,12 +14,14 @@ import asyncio
 
 app = FastAPI()
 
-progress_store = {}  # task_id: progress
+MAPS_DIR = os.path.abspath("./maps")
+CONFIGS_DIR = os.path.abspath("./configs")
+UPLOAD_DIR = os.path.abspath("./uploads")
 
-folder_path = "./maps"
-os.makedirs(folder_path, exist_ok=True)
-folder_path = "./configs"
-os.makedirs(folder_path, exist_ok=True)
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(MAPS_DIR, exist_ok=True)
+os.makedirs(CONFIGS_DIR, exist_ok=True)
+
 
 def generate_map_name():
     return f"map_{uuid.uuid4().hex[:8]}"
@@ -27,20 +30,21 @@ def generate_map_name():
 def build_map_config(map_name: str, filetype: str, config, map_bounds, base_mesh) -> MapConfig:
     objects = []
     landscapes = []
-    
+
     for aug in config.augmentations:
         augment_results = augment(map_bounds, aug, base_mesh)
-        
+
         if aug.type == "landscape":
             landscapes.extend(augment_results)
         else:  # aug.type == "add_model"
             objects.extend(augment_results)
-    
+
     return MapConfig(
         map=f"{map_name}.{filetype}",
         objects=objects,
         landscapes=landscapes
     )
+
 
 def generate_and_write_maps(config, scene, base_mesh, map_bounds, writer=write_config):
     for _ in range(config.map_count):
@@ -48,73 +52,153 @@ def generate_and_write_maps(config, scene, base_mesh, map_bounds, writer=write_c
         map_config = build_map_config(map_name, config.output_type, config, map_bounds, base_mesh)
         writer(map_name, map_config)
     return map_config
- 
+
+
+from os.path import basename
+
+
 @app.post("/create_configs")
 async def create_configs(data: ConfigInput):
-    if not validate_config("config.yaml"):
-        return {"data": "Please provide config file in correct format."}
+    obj_filename = basename(data.obj_path)
+    config_filename = basename(data.config_path)
 
-    scene = load_scene(data.obj_path)
-    config = load_config(data.config_path)
+    scene = load_scene(obj_filename)
+    config = load_uploaded_config(config_filename)
+
     base_mesh = trimesh.util.concatenate(scene.dump())
     map_bounds = scene.bounds
 
     last_map_config = generate_and_write_maps(config, scene, base_mesh, map_bounds)
 
     return {
-    "status": "success",
-    "message": f"Generated {config.map_count} map configurations successfully.",
-    "last_map": last_map_config.map
+        "status": "success",
+        "message": f"Generated {config.map_count} map configurations successfully.",
+        "last_map": last_map_config.map
     }
+
+
+@app.post("/upload_model_config")
+async def upload_model_config(
+    obj_file: UploadFile = File(...),
+    config_file: UploadFile = File(...),
+    mtl_file: UploadFile = File(None)
+):
+    obj_path = os.path.join(UPLOAD_DIR, obj_file.filename)
+    with open(obj_path, "wb") as f:
+        f.write(await obj_file.read())
+
+    config_path = os.path.join(UPLOAD_DIR, config_file.filename)
+    with open(config_path, "wb") as f:
+        f.write(await config_file.read())
+
+    if mtl_file:
+        mtl_path = os.path.join(UPLOAD_DIR, mtl_file.filename)
+        with open(mtl_path, "wb") as f:
+            f.write(await mtl_file.read())
+
+    is_valid = validate_config(config_path=config_path)
+    if not is_valid:
+        return {"status": "error", "message": "Config validation failed."}
+
+    return {"status": "success", "message": "Files uploaded and config validated successfully."}
+
+def update_progress(task_id: str, progress: float):
+    with progress_lock:
+        progress_store[task_id] = progress
 
 @app.post("/create_maps")
 async def create_maps(data: CreatorInput):
-    run_scene_builder(
-        base_map=data.base_map or "./map.obj"
+    task_id = str(uuid.uuid4())
+    with progress_lock:
+        progress_store[task_id] = 0.0
+
+    loop = asyncio.get_running_loop()
+    loop.run_in_executor(
+        None,
+        lambda: run_scene_builder(
+            task_id=task_id,
+            config_folder="./configs",
+            base_map=data.base_map or "./uploads/map.obj",
+            output_folder="./maps",
+            progress_callback=lambda p: update_progress(task_id, p)
         )
-    return {"status": "success", "message": "Maps created successfully."}
+    )
+
+    return {
+        "status": "success",
+        "message": "Map creation started.",
+        "task_id": task_id
+    }
 
 
-@app.get("/get_map_path")
-async def get_map_path():
-    return {"path": os.path.abspath("./maps")}
-@app.get("/get_config_path")
-async def get_config_path():
-    return {"path": os.path.abspath("./configs")}
+@app.get("/configs/list")
+def list_configs():
+    files = [
+        f
+        for f in os.listdir(CONFIGS_DIR)
+        if os.path.isfile(os.path.join(CONFIGS_DIR, f)) and f != "info.txt"
+    ]
+    return JSONResponse(content={"files": files})
+
+
+@app.get("/configs/file/{filename}")
+def get_config_file(filename: str):
+    file_path = os.path.join(CONFIGS_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file_path, filename=filename)
+
+
+@app.get("/maps/list")
+def list_maps():
+    files = [
+        f
+        for f in os.listdir(MAPS_DIR)
+        if os.path.isfile(os.path.join(MAPS_DIR, f)) and f != "info.txt"
+    ]
+    return JSONResponse(content={"files": files})
+
+
+@app.get("/maps/file/{filename}")
+def get_map_file(filename: str):
+    file_path = os.path.join(MAPS_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file_path, filename=filename)
 
 @app.get("/start_progress/{task_id}")
-async def start_progress(task_id: str):
-    if task_id in progress_store:
-        raise HTTPException(status_code=400, detail="Task already running")
-    progress_store[task_id] = 0.0
-    asyncio.create_task(simulate_progress(task_id))
-    return {"message": "Progress started", "task_id": task_id}
-
-async def simulate_progress(task_id: str):
-    try:
-        for i in range(20):
-            await asyncio.sleep(0.25)
-            progress_store[task_id] = (i + 1) / 20.0
-        progress_store[task_id] = 1.0
-    except Exception:
-        progress_store[task_id] = -1.0
-
+async def start_progress(task_id: str, background_tasks: BackgroundTasks):
+    with progress_lock:
+        if task_id not in progress_store:
+            return {"status": "error", "message": "Task ID not found or not started."}
+        else:
+            return {"status": "success", "message": "Task already started.", "task_id": task_id}
+ 
 @app.websocket("/ws/progress/{task_id}")
-async def websocket_progress(websocket: WebSocket, task_id: str):
+async def websocket_endpoint(websocket: WebSocket, task_id: str):
     await websocket.accept()
     try:
         while True:
-            progress = progress_store.get(task_id, 0.0)
+            await asyncio.sleep(1)  
+
+            with progress_lock:
+                progress = progress_store.get(task_id, 0.0)
+
             await websocket.send_json({"progress": progress})
-            if progress >= 1.0 or progress == -1.0:
+
+            if progress >= 1.0:
                 break
-            await asyncio.sleep(0.2)
+
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected: {task_id}")
+
     except Exception as e:
-        print("WebSocket Error:", e)
+        print(f"WebSocket error ({task_id}): {e}")
+
     finally:
         await websocket.close()
-        progress_store.pop(task_id, None)
-
+        with progress_lock:
+            progress_store.pop(task_id, None)
 
 def clear_directory_but_keep_info_txt(directory_path):
     for filename in os.listdir(directory_path):
@@ -126,12 +210,19 @@ def clear_directory_but_keep_info_txt(directory_path):
             except Exception as e:
                 print(f"Error deleting {filename}: {e}")
 
+
 @app.delete("/clear_configs")
 def clear_configs():
-    clear_directory_but_keep_info_txt("./configs")
+    clear_directory_but_keep_info_txt(CONFIGS_DIR)
     return {"status": "configs content cleared"}
+
 
 @app.delete("/clear_maps")
 def clear_maps():
-    clear_directory_but_keep_info_txt("./maps")
+    clear_directory_but_keep_info_txt(MAPS_DIR)
     return {"status": "maps content cleared"}
+
+@app.delete("/clear_uploads")
+def clear_uploads():
+    clear_directory_but_keep_info_txt(UPLOAD_DIR)
+    return {"status": "uploads content cleared"}
