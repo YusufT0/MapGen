@@ -1,13 +1,15 @@
-version: "3.8"
+version: '3.8'
 
 services:
-  fastapi:
+  mapgen-backend:
     build:
+      context: .
       dockerfile: Dockerfile
+    container_name: mapgen_backend
     ports:
       - "8000:8000"
     volumes:
-      - shared_data:C:/shared
-
-volumes:
-  shared_data:
+      - ./uploads:/app/uploads
+      - ./maps:/app/maps
+      - ./configs:/app/configs
+    restart: unless-stopped

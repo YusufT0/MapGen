@@ -1,21 +1,29 @@
-# Base Python image
+# Base image
 FROM python:3.10-slim
 
-# Environment variables
+# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+
+# Install system dependencies for rtree
+RUN apt-get update && apt-get install -y \
+    libspatialindex-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy project files into the container
+# Copy all files
 COPY . /app/
 
-# Install dependencies
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port
+# Create folders for uploads if not exists
+RUN mkdir -p ./uploads ./maps ./configs
+
+# Expose FastAPI port
 EXPOSE 8000
 
-# Start FastAPI with Uvicorn
+# Start FastAPI using Uvicorn
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
