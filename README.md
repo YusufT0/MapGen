@@ -126,7 +126,7 @@ smoothness: random
 
 ##  Docker
 - The backend service is containerized using Docker for easy deployment and scalability.
-- You can find the Docker image on Docker Hub: [mapgen-backend](https://hub.docker.com/repository/docker/sule194/mapgen-backend/general)
+- You can find the Docker image on Docker Hub: [mapgen-backend](https://hub.docker.com/r/sule194/mapgen-backend)
 
 To pull the image, run:
 
