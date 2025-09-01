@@ -26,6 +26,10 @@ internal class MyToolWindow : EditorWindow
     private bool showConfigFoldout;
     private bool showMapFoldout;
 
+    string desktopPath;
+    string configFolder;
+    string mapFolder;
+
     string baseURL = "http://127.0.0.1:8000/";
 
     // for Progress bar 
@@ -51,6 +55,7 @@ internal class MyToolWindow : EditorWindow
     {
         showConfigFoldout = false;
         showMapFoldout = false;
+
     }
 
     internal void OnGUI()
@@ -91,10 +96,15 @@ internal class MyToolWindow : EditorWindow
                 }
                 else
                 {
-                    UnityEngine.Debug.Log("DONE");
-
+                    UnityEngine.Debug.Log("Config accepted: " + configPath);
+                    if (!string.IsNullOrEmpty(objPath) && File.Exists(objPath))
+                    {
+                        EditorCoroutineUtility.StartCoroutineOwnerless(UploadModelAndConfig());
+                    }
                 }
             }
+
+
         }
 
         void PopupMessageManager(string title, string message) 
@@ -197,6 +207,12 @@ internal class MyToolWindow : EditorWindow
   
         EditorGUI.BeginDisabledGroup(!inputsFilled);
 
+        if (GUILayout.Button("Clear Uploads"))
+        {
+            UnityEngine.Debug.Log("Clear Uploads clicked");
+            EditorCoroutineUtility.StartCoroutineOwnerless(ClearDirectoryCoroutine("clear_uploads"));
+        }
+
         showConfigFoldout = EditorGUILayout.Foldout(showConfigFoldout, "Config Management", true);
         if (showConfigFoldout)
         {
@@ -207,9 +223,9 @@ internal class MyToolWindow : EditorWindow
                 UnityEngine.Debug.Log("Create Configs clicked");
                 ConfigRequest postData = new ConfigRequest
                 {
-                    obj_path = objPath.Replace("\\", "/"),
-                    mtl_path = mtlPath.Replace("\\", "/"),
-                    config_path = configPath.Replace("\\", "/")
+                    obj_path = Path.GetFileName(objPath),
+                    config_path = Path.GetFileName(configPath),
+                    mtl_path = string.IsNullOrEmpty(mtlPath) ? null : Path.GetFileName(mtlPath)
                 };
 
                 string json = JsonUtility.ToJson(postData);
@@ -309,39 +325,48 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
-    internal virtual IEnumerator ShowConfigsCoroutine()
+    internal IEnumerator ShowConfigsCoroutine()
     {
-        string endpoint = baseURL + "get_config_path";
+        desktopPath = System.Environment.GetFolderPath(System.Environment.SpecialFolder.Desktop);
+        configFolder = System.IO.Path.Combine(desktopPath, "ConfigsFolder");
 
-        using (UnityWebRequest www = UnityWebRequest.Get(endpoint))
+        if (!Directory.Exists(configFolder))
         {
-            yield return www.SendWebRequest();
+            Directory.CreateDirectory(configFolder);
+        }
 
-            if (www.result != UnityWebRequest.Result.Success)
+        UnityWebRequest listRequest = UnityWebRequest.Get(baseURL + "configs/list");
+        yield return listRequest.SendWebRequest();
+
+        if (listRequest.result != UnityWebRequest.Result.Success)
+        {
+            UnityEngine.Debug.LogError("Failed to get config list: " + listRequest.error);
+            yield break;
+        }
+
+        ConfigList files = JsonUtility.FromJson<ConfigList>(listRequest.downloadHandler.text);
+
+        foreach (string file in files.files)
+        {
+            string fileUrl = baseURL + $"configs/file/{file}";
+            UnityWebRequest fileRequest = UnityWebRequest.Get(fileUrl);
+            yield return fileRequest.SendWebRequest();
+
+            if (fileRequest.result == UnityWebRequest.Result.Success)
             {
-                UnityEngine.Debug.LogError("HTTP Error: " + www.error);
-                yield break;
-            }
-
-            string jsonResponse = www.downloadHandler.text;
-            UnityEngine.Debug.Log("JSON Response: " + jsonResponse);
-
-            string path = ParsePathFromJson(jsonResponse);
-            UnityEngine.Debug.Log("Parsed Path: " + path);
-
-            bool exists = Directory.Exists(path);
-
-            if (!string.IsNullOrEmpty(path) && exists)
-            {
-                UnityEngine.Debug.Log("Calling OpenFolderInExplorer...");
-                OpenFolderInExplorer(path);
+                string savePath = Path.Combine(configFolder, file);
+                File.WriteAllBytes(savePath, fileRequest.downloadHandler.data);
             }
             else
             {
-                UnityEngine.Debug.LogError("Invalid path or folder does not exist: " + path);
+                UnityEngine.Debug.LogError($"Failed to download {file}: {fileRequest.error}");
             }
         }
+
+        OpenFolderInExplorer(configFolder);
     }
+
+
 
     private IEnumerator ClearDirectoryCoroutine(string endpoint)
     {
@@ -363,14 +388,12 @@ internal class MyToolWindow : EditorWindow
     }
 
 
-    internal virtual IEnumerator CreateMapsAndListenProgress()
+    internal IEnumerator CreateMapsAndListenProgress()
     {
-        currentTaskId = Guid.NewGuid().ToString();
         showProgressBar = true;
         progress = 0f;
 
-        // 1. Start progress on backend
-        string startProgressUrl = baseURL + $"start_progress/{currentTaskId}";
+        string startProgressUrl = baseURL + $"start_progress/{Guid.NewGuid()}";
         using (UnityWebRequest www = UnityWebRequest.Get(startProgressUrl))
         {
             yield return www.SendWebRequest();
@@ -383,11 +406,10 @@ internal class MyToolWindow : EditorWindow
             }
             else
             {
-                UnityEngine.Debug.Log("Started progress with task_id: " + currentTaskId);
+                UnityEngine.Debug.Log("Started progress with task_id placeholder.");
             }
         }
 
-        // 2. Send create_maps request (aynı task_id ile değil, backend bağımsız)
         CreatorRequest sendData = new CreatorRequest
         {
             base_map = objPath.Replace("\\", "/")
@@ -413,44 +435,63 @@ internal class MyToolWindow : EditorWindow
             else
             {
                 UnityEngine.Debug.Log("Create Maps Response: " + www.downloadHandler.text);
+
+                CreateMapsResponse responseObj = JsonUtility.FromJson<CreateMapsResponse>(www.downloadHandler.text);
+                if (responseObj == null || string.IsNullOrEmpty(responseObj.task_id))
+                {
+                    UnityEngine.Debug.LogError("Task ID alınamadı!");
+                    showProgressBar = false;
+                    yield break;
+                }
+                currentTaskId = responseObj.task_id;
             }
         }
 
-        // 3. WebSocket ile ilerleme dinle
         yield return WaitForTask(ListenProgressWebSocket(currentTaskId));
     }
 
 
-    internal virtual IEnumerator ShowMapsCoroutine()
+
+    internal IEnumerator ShowMapsCoroutine()
     {
-        string endpoint = baseURL + "get_map_path";
+        string desktopPath = System.Environment.GetFolderPath(System.Environment.SpecialFolder.Desktop);
+        mapFolder = Path.Combine(desktopPath, "MapsFolder");
 
-        using (UnityWebRequest www = UnityWebRequest.Get(endpoint))
+        if (!Directory.Exists(mapFolder))
+            Directory.CreateDirectory(mapFolder);
+
+        UnityWebRequest listRequest = UnityWebRequest.Get(baseURL + "maps/list");
+        yield return listRequest.SendWebRequest();
+
+        if (listRequest.result != UnityWebRequest.Result.Success)
         {
-            yield return www.SendWebRequest();
+            UnityEngine.Debug.LogError("Failed to get map list: " + listRequest.error);
+            yield break;
+        }
 
-            if (www.result != UnityWebRequest.Result.Success)
+        ConfigList files = JsonUtility.FromJson<ConfigList>(listRequest.downloadHandler.text);
+
+        foreach (string file in files.files)
+        {
+            string fileUrl = baseURL + $"maps/file/{file}";
+            UnityWebRequest fileRequest = UnityWebRequest.Get(fileUrl);
+            yield return fileRequest.SendWebRequest();
+
+            if (fileRequest.result == UnityWebRequest.Result.Success)
             {
-                UnityEngine.Debug.LogError("HTTP Error: " + www.error);
-                yield break;
-            }
-
-            string jsonResponse = www.downloadHandler.text;
-            UnityEngine.Debug.Log("JSON Response: " + jsonResponse);
-
-            string path = ParsePathFromJson(jsonResponse);
-            UnityEngine.Debug.Log("Parsed Path: " + path);
-
-            if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
-            {
-                OpenFolderInExplorer(path);
+                string savePath = Path.Combine(mapFolder, file);
+                File.WriteAllBytes(savePath, fileRequest.downloadHandler.data);
             }
             else
             {
-                UnityEngine.Debug.LogError("Invalid path or folder does not exist: " + path);
+                UnityEngine.Debug.LogError($"Failed to download {file}: {fileRequest.error}");
             }
         }
+
+        OpenFolderInExplorer(mapFolder);
     }
+
+
 
     internal static string ParsePathFromJson(string json)
     {
@@ -468,52 +509,43 @@ internal class MyToolWindow : EditorWindow
 
     internal virtual void OpenFolderInExplorer(string path)
     {
-        if (string.IsNullOrEmpty(path))
-        {
-            UnityEngine.Debug.LogError("Path is null or empty");
-            return;
-        }
-
-        try
-        {
-            string winPath = path.Replace("/", "\\");
-            UnityEngine.Debug.Log("Trying to open folder: " + winPath);
-
-            var psi = new ProcessStartInfo()
-            {
-                FileName = "explorer.exe",
-                Arguments = $"\"{winPath}\"",
-                UseShellExecute = true,
-                Verb = "open"
-            };
-
-            Process.Start(psi);
-            UnityEngine.Debug.Log("Explorer process started.");
-        }
-        catch (Exception ex)
-        {
-            UnityEngine.Debug.LogError("Explorer launch failed: " + ex.Message);
-        }
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+    System.Diagnostics.Process.Start("explorer.exe", path.Replace("/", "\\"));
+#elif UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
+    System.Diagnostics.Process.Start("open", path);
+#endif
     }
+
 
     void ProcessModelPath()
     {
-
         if (modelPath.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase))
         {
             (objPath, mtlPath) = FBXtoOBJExporter.ConvertExternalFBX(modelPath);
             if (!string.IsNullOrEmpty(objPath))
-                UnityEngine.Debug.Log("FBX conversion succeeded. OBJ: " + objPath + " | MTL: " + mtlPath);
+            {
+                UnityEngine.Debug.Log("FBX conversion succeeded. OBJ: " + objPath);
+            }
             else
+            {
                 UnityEngine.Debug.LogError("FBX conversion failed.");
+                return;
+            }
         }
         else if (modelPath.EndsWith(".obj", StringComparison.OrdinalIgnoreCase))
         {
             objPath = modelPath;
             mtlPath = "";
-            UnityEngine.Debug.Log(".obj selected. OBJ path: " + objPath);
+            UnityEngine.Debug.Log("OBJ selected: " + objPath);
+        }
+
+        //Eğer config de varsa upload başlasın
+        if (!string.IsNullOrEmpty(configPath) && File.Exists(configPath))
+        {
+            EditorCoroutineUtility.StartCoroutineOwnerless(UploadModelAndConfig());
         }
     }
+
 
     private async Task ListenProgressWebSocket(string taskId)
     {
@@ -542,7 +574,7 @@ internal class MyToolWindow : EditorWindow
 
         webSocket.OnError += (e) =>
         {
-            //TODO
+            showProgressBar = false;
         };
 
 
@@ -567,8 +599,10 @@ internal class MyToolWindow : EditorWindow
                 showProgressBar = false;
 
                 await CloseWebSocketSafely();
+
             }
         };
+
 
         try
         {
@@ -589,8 +623,9 @@ internal class MyToolWindow : EditorWindow
             await Task.Delay(100);
         }
 
-        UnityEngine.Debug.Log("WebSocket closed and cleaned up.");
         webSocket = null;
+        UnityEngine.Debug.Log("WebSocket closed and cleaned up.");
+
     }
 
 
@@ -619,6 +654,85 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
+    internal IEnumerator UploadModelAndConfig()
+    {
+        if (string.IsNullOrEmpty(objPath) || !File.Exists(objPath) ||
+            string.IsNullOrEmpty(configPath) || !File.Exists(configPath))
+        {
+            UnityEngine.Debug.LogWarning("Upload skipped: OBJ or Config path invalid.");
+            yield break;
+        }
 
+        WWWForm form = new WWWForm();
 
+        // Add .obj
+        byte[] objData = File.ReadAllBytes(objPath);
+        form.AddBinaryData("obj_file", objData, Path.GetFileName(objPath));
+
+        // Add .mtl if exists
+        if (!string.IsNullOrEmpty(mtlPath) && File.Exists(mtlPath))
+        {
+            byte[] mtlData = File.ReadAllBytes(mtlPath);
+            form.AddBinaryData("mtl_file", mtlData, Path.GetFileName(mtlPath));
+        }
+
+        // Add config
+        byte[] configData = File.ReadAllBytes(configPath);
+        form.AddBinaryData("config_file", configData, Path.GetFileName(configPath));
+
+        using (UnityWebRequest www = UnityWebRequest.Post(baseURL + "upload_model_config", form))
+        {
+            yield return www.SendWebRequest();
+
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                UnityEngine.Debug.LogError("Upload failed: " + www.error);
+            }
+            else
+            {
+                UnityEngine.Debug.Log("Files uploaded successfully: " + www.downloadHandler.text);
+            }
+        }
+    }
+
+    IEnumerator DownloadConfigs()
+    {
+        string desktopPath = System.Environment.GetFolderPath(System.Environment.SpecialFolder.Desktop);
+        string configsFolder = System.IO.Path.Combine(desktopPath, "ConfigsFolder");
+        if (!System.IO.Directory.Exists(configsFolder))
+            System.IO.Directory.CreateDirectory(configsFolder);
+
+        // Dosya listesini al
+        UnityWebRequest www = UnityWebRequest.Get( baseURL + "/configs/list");
+        yield return www.SendWebRequest();
+
+        if (www.result != UnityWebRequest.Result.Success)
+        {
+            UnityEngine.Debug.LogError("Config list error: " + www.error);
+            yield break;
+        }
+
+        var json = www.downloadHandler.text;
+        var files = JsonUtility.FromJson<ConfigList>(json);
+
+        foreach (string file in files.files)
+        {
+            string fileUrl = baseURL + $"/configs/file/{file}";
+            UnityWebRequest fileReq = UnityWebRequest.Get(fileUrl);
+            yield return fileReq.SendWebRequest();
+
+            if (fileReq.result == UnityWebRequest.Result.Success)
+            {
+                string savePath = System.IO.Path.Combine(configsFolder, file);
+                System.IO.File.WriteAllBytes(savePath, fileReq.downloadHandler.data);
+                UnityEngine.Debug.Log($"Saved config {file}");
+            }
+            else
+            {
+                UnityEngine.Debug.LogError($"Failed to download {file}: {fileReq.error}");
+            }
+        }
+    }
+
+  
 }
