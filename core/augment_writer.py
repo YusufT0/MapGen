@@ -1,11 +1,17 @@
 import numpy as np
 import trimesh
+import asyncio
+import threading
+import concurrent.futures
+from fastapi import WebSocket
 from pathlib import Path
 from abc import ABC, abstractmethod
 from core.reader import load_map_config, load_scene
 from trimesh.transformations import translation_matrix, scale_matrix
 from core.augment_tool import control_random_creation
 
+progress_lock = threading.Lock()
+progress_store = {}
 
 class ShapeCreator(ABC):
     """
@@ -155,18 +161,18 @@ def export_scene(scene, filename, output_folder="maps"):
 
 
 class ConfigProcessor:
-    """Processes configuration files."""
-    
-    def __init__(self, config_folder: str):
+    def __init__(self, config_folder: str = "./configs"):
         self.config_folder = Path(config_folder)
     
     def get_config_files(self) -> list[Path]:
-        """Get all YAML configuration files."""
-        return list(self.config_folder.glob("*.yaml"))
+        return [p for p in self.config_folder.glob("*.yaml") if p.stem.startswith("map_")]
+
     
     def load_config(self, config_file: Path):
-        """Load a single configuration file."""
-        return load_map_config(str(config_file))
+        # full path verildiğinden emin ol
+        return load_map_config(str(config_file.resolve()))
+
+
 
 class LandScapeBuilder:
     def __init__(self):
@@ -250,23 +256,41 @@ class SceneManager:
         self.output_folder = output_folder
         self.base_scene = load_scene(self.base_map)
     
-    def process_all_scenes(self):
+    def process_all_scenes(self, progress_callback=None):
         config_files = self.config_processor.get_config_files()
-        
-        for config_file in config_files:
+        total = len(config_files)
+
+        for i, config_file in enumerate(config_files):
             config = self.config_processor.load_config(config_file)
-            
-            # Load a fresh copy of the base scene for each config
             fresh_base_scene = load_scene(self.base_map)
-            
+
             scene_with_landscape = apply_landscape(config, self.landscape_builder, fresh_base_scene)
             final_scene = build_scene(config, self.shape_factory, scene_with_landscape)
             export_scene(final_scene, config.map, self.output_folder)
 
+            if progress_callback:
+                progress_callback((i + 1) / total)
 
 
-def run_scene_builder(config_folder="./configs", base_map="./map.obj", output_folder="./maps"):
-    """Entry point function."""
-    print(base_map)
+def run_scene_builder(task_id=None, config_folder="./configs", base_map="./map.obj", output_folder="./maps", progress_callback=None):
+    print(f"[run_scene_builder] Base map: {base_map}")
     manager = SceneManager(config_folder, base_map, output_folder)
-    manager.process_all_scenes()
+
+    config_files = manager.config_processor.get_config_files()
+    total = len(config_files)
+
+    for i, config_file in enumerate(config_files):
+        config = manager.config_processor.load_config(config_file)
+        fresh_base_scene = load_scene(base_map)
+
+        scene_with_landscape = apply_landscape(config, manager.landscape_builder, fresh_base_scene)
+        final_scene = build_scene(config, manager.shape_factory, scene_with_landscape)
+        export_scene(final_scene, config.map, output_folder)
+
+        progress = (i + 1) / total
+        print(f"[run_scene_builder] Progress: {progress:.2f}")
+        if progress_callback:
+            progress_callback(progress)
+
+
+
