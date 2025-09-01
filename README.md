@@ -131,5 +131,5 @@ smoothness: random
 To pull the image, run:
 
 ```bash
-docker pull sule194/mapgen-backend
+docker pull sule194/mapgen-backend:latest
 
