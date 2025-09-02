@@ -22,7 +22,28 @@ This project enables users to:
   - Unity UI (for Event System)
   - Unity Test Framework (for running tests)
   - Editor Coroutines (for coroutine support in the editor)
-  - [NativeWebSocket](https://github.com/endel/NativeWebSocket) (real-time Unity-backend communication.) 
+  - [NativeWebSocket](https://github.com/endel/NativeWebSocket) (real-time Unity-backend communication.)
+
+## Setup Instructions
+- Clone or Download the Project
+- Install Dependencies
+  ```bash
+  pip install -r requirements.txt
+- Start the Backend Server
+  ```bash
+  uvicorn app:app --reload
+- Or run it in Docker (optional):
+  ```bash
+  docker build -t backend-image .
+  docker run -p 8000:8000 backend-image
+- Or run with Docker (pull from Docker Hub):
+  ```bash
+  docker pull sule194/mapgen-backend:latest
+  docker run -p 8000:8000 sule194/mapgen-backend:latest
+- Open the Unity Project
+- Make sure required packages are installed.
+- Copy the `com.sule.tool` folder into your Unity project’s Packages directory.
+- Ready to use.
 
 ### 1.  Input Fields for Models and Configs
 
