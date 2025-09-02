@@ -27,6 +27,10 @@ This project enables users to:
 ---
 ## Setup Instructions
 - Clone or Download the Project
+-  Or run with Docker (pull from Docker Hub):
+  ```bash
+  docker pull sule194/mapgen-backend:latest
+  docker run -p 8000:8000 sule194/mapgen-backend:latest
 - Install Dependencies
   ```bash
   pip install -r requirements.txt
@@ -37,10 +41,6 @@ This project enables users to:
     ```bash
     docker build -t backend-image .
     docker run -p 8000:8000 backend-image
-- Or run with Docker (pull from Docker Hub):
-  ```bash
-  docker pull sule194/mapgen-backend:latest
-  docker run -p 8000:8000 sule194/mapgen-backend:latest
 - Open the Unity Project
 - Make sure required packages are installed in Unity.
 - Copy the `com.sule.tool` folder into your Unity project’s Packages directory.
