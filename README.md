@@ -25,8 +25,8 @@ This project enables users to:
   - [NativeWebSocket](https://github.com/endel/NativeWebSocket) (real-time Unity-backend communication.)
 
 ## Setup Instructions
-1. Clone or Download the Project
-2. Install Dependencies
+- Clone or Download the Project
+- Install Dependencies
   ```bash
   pip install -r requirements.txt
 - Start the Backend Server
