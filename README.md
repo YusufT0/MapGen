@@ -27,7 +27,7 @@ This project enables users to:
 ---
 ## Setup Instructions
 - Clone or Download the Project
-- Or run with Docker (pull from Docker Hub):
+- Or run backend with Docker (pull from Docker Hub):
   ```bash
   docker pull sule194/mapgen-backend:latest
   docker run -p 8000:8000 sule194/mapgen-backend:latest
