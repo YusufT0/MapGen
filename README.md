@@ -24,6 +24,7 @@ This project enables users to:
   - Editor Coroutines (for coroutine support in the editor)
   - [NativeWebSocket](https://github.com/endel/NativeWebSocket) (real-time Unity-backend communication.)
 
+---
 ## Setup Instructions
 - Clone or Download the Project
 - Install Dependencies
@@ -45,6 +46,7 @@ This project enables users to:
 - Copy the `com.sule.tool` folder into your Unity project’s Packages directory.
 - Ready to use.
 
+---
 ### 1.  Input Fields for Models and Configs
 
 Users can add 3D model and config files in three different ways:
