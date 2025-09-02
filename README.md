@@ -27,7 +27,7 @@ This project enables users to:
 ---
 ## Setup Instructions
 - Clone or Download the Project
--  Or run with Docker (pull from Docker Hub):
+- Or run with Docker (pull from Docker Hub):
   ```bash
   docker pull sule194/mapgen-backend:latest
   docker run -p 8000:8000 sule194/mapgen-backend:latest
@@ -35,12 +35,12 @@ This project enables users to:
   ```bash
   pip install -r requirements.txt
 - Start the Backend Server
-    ```bash
-    uvicorn app:app --reload
- - Or run it in Docker (optional):
-    ```bash
-    docker build -t backend-image .
-    docker run -p 8000:8000 backend-image
+   ```bash
+  uvicorn app:app --reload
+- Or run it in Docker (optional):
+   ```bash
+   docker build -t backend-image .
+   docker run -p 8000:8000 backend-image
 - Open the Unity Project
 - Make sure required packages are installed in Unity.
 - Copy the `com.sule.tool` folder into your Unity project’s Packages directory.
