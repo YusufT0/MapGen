@@ -26,25 +26,25 @@ This project enables users to:
 
 ---
 ## Setup Instructions
-- Clone or Download the Project
-- Install Dependencies
+1. Clone or Download the Project
+2. Install Dependencies
   ```bash
   pip install -r requirements.txt
-- Start the Backend Server
-  ```bash
-  uvicorn app:app --reload
-- Or run it in Docker (optional):
-  ```bash
-  docker build -t backend-image .
-  docker run -p 8000:8000 backend-image
+3. Start the Backend Server
+    ```bash
+    uvicorn app:app --reload
+  - Or run it in Docker (optional):
+    ```bash
+    docker build -t backend-image .
+    docker run -p 8000:8000 backend-image
 - Or run with Docker (pull from Docker Hub):
   ```bash
   docker pull sule194/mapgen-backend:latest
   docker run -p 8000:8000 sule194/mapgen-backend:latest
-- Open the Unity Project
-- Make sure required packages are installed.
-- Copy the `com.sule.tool` folder into your Unity project’s Packages directory.
-- Ready to use.
+4. Open the Unity Project
+5. Make sure required packages are installed in Unity.
+6. Copy the `com.sule.tool` folder into your Unity project’s Packages directory.
+7. Ready to use.
 
 ---
 ### 1.  Input Fields for Models and Configs
