@@ -22,6 +22,7 @@ This project enables users to:
   - Unity UI (for Event System)
   - Unity Test Framework (for running tests)
   - Editor Coroutines (for coroutine support in the editor)
+  - [NativeWebSocket](https://github.com/endel/NativeWebSocket) (real-time Unity-backend communication.) 
 
 ### 1.  Input Fields for Models and Configs
 
