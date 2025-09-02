@@ -38,10 +38,13 @@ Users can add 3D model and config files in three different ways:
 
 | Button            | Function |
 |-------------------|----------|
+| **Clear Uploads**   | Deletes all uploaded model and config files from the `/uploads` folder (except `info.txt`). |
 | **Create Configs** | Generates configuration files. |
 | **Show Configs**   | Opens the folder containing the configs in the system file explorer. |
+| **Clear Configs**   |  Deletes all generated config files from the `/configs` folder (except `info.txt`). |
 | **Create Maps**    | Generates map files based on configs and base map. |
 | **Show Maps**      | Opens the generated maps in the file explorer. Users can drag them into the Unity scene. |
+| **Clear Maps**   | Deletes all generated map files from the `/maps` folder (except `info.txt`). |
 
 ---
 
@@ -56,14 +59,22 @@ Users can add 3D model and config files in three different ways:
 
 The backend is built with FastAPI to receive HTTP requests from Unity and generate content.
 
-###  API Endpoints
+### API Endpoints
 
-| Method | Endpoint            | Description                        |
-|--------|---------------------|------------------------------------|
-| `POST` | `/create_configs`   | Generates config files             |
-| `POST` | `/create_maps`      | Creates maps from configs          |
-| `GET`  | `/get_config_path`  | Returns the path to the configs folder |
-| `GET`  | `/get_map_path`     | Returns the path to the maps folder |
+| Method   | Endpoint                   | Description                                  |
+|----------|----------------------------|----------------------------------------------|
+| `POST`   | `/create_configs`          | Generates config files from uploaded files.  |
+| `POST`   | `/upload_model_config`     | Uploads `.obj`, `.mtl`, and `.yaml` files.   |
+| `POST`   | `/create_maps`             | Creates maps from configs and base model.    |
+| `GET`    | `/configs/list`            | Lists config files.                          |
+| `GET`    | `/configs/file/{filename}` | Downloads config file.            |
+| `GET`    | `/maps/list`               | Lists generated maps.                        |
+| `GET`    | `/maps/file/{filename}`    | Downloads map file.               |
+| `GET`    | `/start_progress/{task_id}`| Checks progress of map generation.           |
+| `WS`     | `/ws/progress/{task_id}`   | Sends real-time progress updates.          |
+| `DELETE` | `/clear_configs`           | Clears all config files.                     |
+| `DELETE` | `/clear_maps`              | Clears all map files.                        |
+| `DELETE` | `/clear_uploads`           | Clears all uploaded files.                   |
 
 ---
 
