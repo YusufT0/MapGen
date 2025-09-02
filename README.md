@@ -37,6 +37,7 @@ This project enables users to:
 - Start the Backend Server
    ```bash
   uvicorn app:app --reload
+   
   - Or run it in Docker (optional):
     ```bash
     docker build -t backend-image .
