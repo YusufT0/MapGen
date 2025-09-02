@@ -242,6 +242,7 @@ internal class MyToolWindow : EditorWindow
             {
                 UnityEngine.Debug.Log("Clear Configs clicked");
                 EditorCoroutineUtility.StartCoroutineOwnerless(ClearDirectoryCoroutine("clear_configs"));
+                ClearFolderandDelete(configFolder);
             }
 
             EditorGUI.indentLevel--;
@@ -270,6 +271,7 @@ internal class MyToolWindow : EditorWindow
             {
                 UnityEngine.Debug.Log("Clear Maps clicked");
                 EditorCoroutineUtility.StartCoroutineOwnerless(ClearDirectoryCoroutine("clear_maps"));
+                ClearFolderandDelete(mapFolder);
             }
 
             EditorGUI.indentLevel--;
@@ -734,5 +736,25 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
-  
+    internal void ClearFolderandDelete(string folderPath)
+    {
+        try
+        {
+            if (Directory.Exists(folderPath))
+            {
+                Directory.Delete(folderPath, true); // 'true' recursive silme için
+                UnityEngine.Debug.Log($"Deleted folder and contents: {folderPath}");
+            }
+            else
+            {
+                UnityEngine.Debug.LogWarning($"Folder does not exist: {folderPath}");
+            }
+        }
+        catch (Exception e)
+        {
+            UnityEngine.Debug.LogError($"Error deleting folder {folderPath}: {e.Message}");
+        }
+    }
+
+
 }
