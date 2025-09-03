@@ -40,8 +40,8 @@ This project enables users to:
    ```
   - Or run it in Docker (optional):
     ```bash
-    docker build -t backend-image .
-    docker run -p 8000:8000 backend-image
+    docker build -t mapgen-backend .
+    docker run -p 8000:8000 mapgen-backend
 - Open the Unity Project
 - Make sure required packages are installed in Unity.
 - Copy the `com.sule.tool` folder into your Unity project’s Packages directory.
