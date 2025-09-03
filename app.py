@@ -7,6 +7,7 @@ from models.api import ConfigInput, CreatorInput
 from models.domain import MapConfig
 from core.writer import write_config
 from validation.schema_test import validate_config
+from typing import List
 import trimesh
 import os
 import uuid
@@ -81,23 +82,52 @@ async def create_configs(data: ConfigInput):
 async def upload_model_config(
     obj_file: UploadFile = File(...),
     config_file: UploadFile = File(...),
-    mtl_file: UploadFile = File(None)
+    mtl_file: UploadFile = File(None),
+    texture_files: List[UploadFile] = File([])  # Texture dosyaları için
 ):
+    # OBJ dosyasını kaydet
     obj_path = os.path.join(UPLOAD_DIR, obj_file.filename)
     with open(obj_path, "wb") as f:
         f.write(await obj_file.read())
 
+    # Config dosyasını kaydet
     config_path = os.path.join(UPLOAD_DIR, config_file.filename)
     with open(config_path, "wb") as f:
         f.write(await config_file.read())
 
+    # MTL dosyasını kaydet (eğer varsa)
     if mtl_file:
         mtl_path = os.path.join(UPLOAD_DIR, mtl_file.filename)
         with open(mtl_path, "wb") as f:
             f.write(await mtl_file.read())
 
+    # Texture dosyalarını kaydet (PNG, JPG, JPEG, TGA, etc.)
+    for texture_file in texture_files:
+        if texture_file.filename:  # Boş dosya olmadığından emin ol
+            # Sadece texture uzantılarını kabul et
+            texture_ext = os.path.splitext(texture_file.filename)[1].lower()
+            if texture_ext in ['.png', '.jpg', '.jpeg', '.tga', '.bmp', '.tif']:
+                texture_path = os.path.join(UPLOAD_DIR, texture_file.filename)
+                with open(texture_path, "wb") as f:
+                    f.write(await texture_file.read())
+                print(f"Texture uploaded: {texture_file.filename}")
+
+    # Config validation
     is_valid = validate_config(config_path=config_path)
     if not is_valid:
+        # Hata durumunda yüklenen dosyaları temizle
+        try:
+            os.remove(obj_path)
+            os.remove(config_path)
+            if mtl_file:
+                os.remove(mtl_path)
+            for texture_file in texture_files:
+                texture_path = os.path.join(UPLOAD_DIR, texture_file.filename)
+                if os.path.exists(texture_path):
+                    os.remove(texture_path)
+        except Exception as e:
+            print(f"Error cleaning up files: {e}")
+        
         return {"status": "error", "message": "Config validation failed."}
 
     return {"status": "success", "message": "Files uploaded and config validated successfully."}
