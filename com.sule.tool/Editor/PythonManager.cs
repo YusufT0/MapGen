@@ -23,20 +23,20 @@ internal class MyToolWindow : EditorWindow
     internal string newModelPath = "";
 
     internal bool showAbsolutePathWarning = false;
-    private bool showConfigFoldout;
-    private bool showMapFoldout;
+    internal bool showConfigFoldout;
+    internal bool showMapFoldout;
 
-    string desktopPath;
-    string configFolder;
-    string mapFolder;
+    internal string desktopPath;
+    internal string configFolder;
+    internal string mapFolder;
 
-    string baseURL = "http://127.0.0.1:8000/";
+    internal string baseURL = "http://127.0.0.1:8000/";
 
     // for Progress bar 
-    private bool showProgressBar = false;
-    private float progress = 0f;
-    private WebSocket webSocket;
-    private string currentTaskId = "";
+    internal bool showProgressBar = false;
+    internal float progress = 0f;
+    internal WebSocket webSocket;
+    internal string currentTaskId = "";
 
     [MenuItem("Tools/MapGen")]
     public static void ShowWindow()
@@ -44,14 +44,14 @@ internal class MyToolWindow : EditorWindow
         GetWindow<MyToolWindow>("MapGen");
     }
 
-    private IWebRequestHandler requestHandler = new WebRequestHandler();
+    protected IWebRequestHandler requestHandler = new WebRequestHandler();
 
     internal void SetRequestHandler(IWebRequestHandler handler)
     {
         this.requestHandler = handler;
     }
 
-    private void OnEnable()
+    internal void OnEnable()
     {
         showConfigFoldout = false;
         showMapFoldout = false;
@@ -64,28 +64,32 @@ internal class MyToolWindow : EditorWindow
 
         GUILayout.Label("Input Fields", EditorStyles.boldLabel);
 
-        // === MODEL DOSYASI ===
+        // === MODEL KLASÖRÜ (Eski Model dosyası) ===
         GUILayout.BeginHorizontal();
-        Rect modelRect = GUILayoutUtility.GetRect(new GUIContent("Model"), GUI.skin.textField);
-        GUI.SetNextControlName("Model");
-        newModelPath = EditorGUI.TextField(modelRect, "Model", newModelPath);
+        Rect modelRect = GUILayoutUtility.GetRect(new GUIContent("Model Folder"), GUI.skin.textField);
+        GUI.SetNextControlName("Model Folder");
+        newModelPath = EditorGUI.TextField(modelRect, "Model Folder", newModelPath);
 
         // Eğer kullanıcı elle yazdıysa, sadece "Enter" tuşuna bastığında kabul et
-        if (evt.isKey && evt.type == EventType.KeyDown && evt.keyCode == KeyCode.Return) 
+        if (evt.isKey && evt.type == EventType.KeyDown && evt.keyCode == KeyCode.Return)
         {
             string focused = GUI.GetNameOfFocusedControl();
 
-            if (focused == "Model")
+            if (focused == "Model Folder")
             {
                 if (!Path.IsPathRooted(newModelPath))
                 {
                     PopupMessageManager("Warning", "Please enter absolute path");
                 }
+                else if (!Directory.Exists(newModelPath))
+                {
+                    PopupMessageManager("Warning", "Directory does not exist");
+                }
                 else
                 {
-                    UnityEngine.Debug.Log("ModelDONE");
+                    UnityEngine.Debug.Log("Model Folder DONE");
                     modelPath = newModelPath;
-                    ProcessModelPath();
+                    ProcessModelFolder(); // Değişti: ProcessModelPath yerine ProcessModelFolder
                 }
             }
             else if (focused == "Config (.yaml)")
@@ -93,6 +97,10 @@ internal class MyToolWindow : EditorWindow
                 if (!Path.IsPathRooted(configPath))
                 {
                     PopupMessageManager("Warning", "Please enter absolute path");
+                }
+                else if (!File.Exists(configPath))
+                {
+                    PopupMessageManager("Warning", "File does not exist");
                 }
                 else
                 {
@@ -103,64 +111,71 @@ internal class MyToolWindow : EditorWindow
                     }
                 }
             }
-
-
         }
 
-        void PopupMessageManager(string title, string message) 
+        void PopupMessageManager(string title, string message)
         {
             showAbsolutePathWarning = true;
 
             if (showAbsolutePathWarning)
             {
-                  showAbsolutePathWarning = false; // sadece 1 kez çalışsın
-                  EditorApplication.delayCall += () =>
-                  {
-                  EditorUtility.DisplayDialog(title, message, "OK");
-                  };
+                showAbsolutePathWarning = false;
+                EditorApplication.delayCall += () =>
+                {
+                    EditorUtility.DisplayDialog(title, message, "OK");
+                };
             }
         }
 
         if (GUILayout.Button("Browse", GUILayout.MaxWidth(80)))
         {
-            string path = EditorUtility.OpenFilePanel("Select FBX Model", "", "fbx,obj");
+            // File yerine Folder seçimi
+            string path = EditorUtility.OpenFolderPanel("Select Model Folder", "", "");
             if (!string.IsNullOrEmpty(path))
             {
-                newModelPath = Path.GetFullPath(path); // Global path
+                newModelPath = Path.GetFullPath(path);
                 modelPath = newModelPath;
-                ProcessModelPath(); // dönüşüm fonksiyonu
+                ProcessModelFolder(); // Değişti: ProcessModelPath yerine ProcessModelFolder
             }
         }
         GUILayout.EndHorizontal();
 
-        if ((evt.type == EventType.DragUpdated || evt.type == EventType.DragPerform) && modelRect.Contains(evt.mousePosition))
+        // Model alanı için drag drop (klasör desteği ile)
+        if (modelRect.Contains(evt.mousePosition))
         {
-            DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
-
-            if (evt.type == EventType.DragPerform)
+            if (evt.type == EventType.DragUpdated)
+            {
+                bool hasValidFolder = false;
+                foreach (var path in DragAndDrop.paths)
+                {
+                    if (Directory.Exists(path))
+                    {
+                        hasValidFolder = true;
+                        break;
+                    }
+                }
+                DragAndDrop.visualMode = hasValidFolder ? DragAndDropVisualMode.Copy : DragAndDropVisualMode.Rejected;
+                evt.Use();
+            }
+            else if (evt.type == EventType.DragPerform)
             {
                 DragAndDrop.AcceptDrag();
                 foreach (var path in DragAndDrop.paths)
                 {
-                    string ext = Path.GetExtension(path).ToLower();
-                    if (ext == ".fbx" || ext == ".obj")
+                    if (Directory.Exists(path))
                     {
-                        UnityEngine.Debug.Log("Model file dragged: " + path);
-                        newModelPath = Path.GetFullPath(path); // Global path
+                        UnityEngine.Debug.Log("Model folder dragged: " + path);
+                        newModelPath = Path.GetFullPath(path);
                         modelPath = newModelPath;
-                        ProcessModelPath(); // dönüşüm fonksiyonu   
-                    }
-                    else
-                    {
-                        UnityEngine.Debug.LogWarning("Unsupported file for model: " + path);
-                        PopupMessageManager("Warning", "Unsupported file for model");
+                        ProcessModelFolder(); // Değişti: ProcessModelPath yerine ProcessModelFolder
+                        break;
                     }
                 }
+                evt.Use();
             }
-            evt.Use();
         }
 
-        // === CONFIG DOSYASI ===
+        // === CONFIG DOSYASI (Aynı kalacak) ===
         GUILayout.BeginHorizontal();
         Rect configRect = GUILayoutUtility.GetRect(new GUIContent("Config (.yaml)"), GUI.skin.textField);
         GUI.SetNextControlName("Config (.yaml)");
@@ -172,10 +187,16 @@ internal class MyToolWindow : EditorWindow
             if (!string.IsNullOrEmpty(path))
             {
                 configPath = path;
+                // Eğer model zaten seçilmişse, otomatik upload başlat
+                if (!string.IsNullOrEmpty(objPath) && File.Exists(objPath))
+                {
+                    EditorCoroutineUtility.StartCoroutineOwnerless(UploadModelAndConfig());
+                }
             }
         }
         GUILayout.EndHorizontal();
 
+        // Config alanı için drag drop (aynı kalacak)
         if ((evt.type == EventType.DragUpdated || evt.type == EventType.DragPerform) && configRect.Contains(evt.mousePosition))
         {
             DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
@@ -190,7 +211,11 @@ internal class MyToolWindow : EditorWindow
                     {
                         configPath = path;
                         UnityEngine.Debug.Log("Config file dragged: " + path);
-
+                        // Eğer model zaten seçilmişse, otomatik upload başlat
+                        if (!string.IsNullOrEmpty(objPath) && File.Exists(objPath))
+                        {
+                            EditorCoroutineUtility.StartCoroutineOwnerless(UploadModelAndConfig());
+                        }
                     }
                     else
                     {
@@ -198,14 +223,9 @@ internal class MyToolWindow : EditorWindow
                         PopupMessageManager("Warning", "Unsupported file for config");
                     }
                 }
+                evt.Use();
             }
-            evt.Use();
         }
-
-        bool inputsFilled = !string.IsNullOrEmpty(modelPath) && System.IO.Path.IsPathRooted(modelPath) &&
-        !string.IsNullOrEmpty(configPath) && System.IO.Path.IsPathRooted(configPath); ;
-  
-        EditorGUI.BeginDisabledGroup(!inputsFilled);
 
         if (GUILayout.Button("Clear Uploads"))
         {
@@ -299,7 +319,6 @@ internal class MyToolWindow : EditorWindow
             Repaint();
         }
 
-        EditorGUI.EndDisabledGroup();
     }
 
     internal virtual IEnumerator SendCreateConfigsRequest(string json)
@@ -327,7 +346,7 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
-    internal IEnumerator ShowConfigsCoroutine()
+    internal virtual IEnumerator ShowConfigsCoroutine()
     {
         desktopPath = System.Environment.GetFolderPath(System.Environment.SpecialFolder.Desktop);
         configFolder = System.IO.Path.Combine(desktopPath, "ConfigsFolder");
@@ -370,7 +389,7 @@ internal class MyToolWindow : EditorWindow
 
 
 
-    private IEnumerator ClearDirectoryCoroutine(string endpoint)
+    internal virtual IEnumerator ClearDirectoryCoroutine(string endpoint)
     {
         string url = baseURL + endpoint;
 
@@ -390,7 +409,7 @@ internal class MyToolWindow : EditorWindow
     }
 
 
-    internal IEnumerator CreateMapsAndListenProgress()
+    internal virtual IEnumerator CreateMapsAndListenProgress()
     {
         showProgressBar = true;
         progress = 0f;
@@ -454,7 +473,7 @@ internal class MyToolWindow : EditorWindow
 
 
 
-    internal IEnumerator ShowMapsCoroutine()
+    internal virtual IEnumerator ShowMapsCoroutine()
     {
         string desktopPath = System.Environment.GetFolderPath(System.Environment.SpecialFolder.Desktop);
         mapFolder = Path.Combine(desktopPath, "MapsFolder");
@@ -519,11 +538,18 @@ internal class MyToolWindow : EditorWindow
     }
 
 
-    void ProcessModelPath()
+    internal void ProcessModelFolder()
     {
-        if (modelPath.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase))
+        // Klasördeki FBX dosyalarını bul
+        string[] fbxFiles = Directory.GetFiles(modelPath, "*.fbx", SearchOption.TopDirectoryOnly);
+        string[] objFiles = Directory.GetFiles(modelPath, "*.obj", SearchOption.TopDirectoryOnly);
+
+        if (fbxFiles.Length > 0)
         {
-            (objPath, mtlPath) = FBXtoOBJExporter.ConvertExternalFBX(modelPath);
+            // İlk FBX dosyasını kullan
+            string fbxPath = fbxFiles[0];
+            (objPath, mtlPath) = FBXtoOBJExporter.ConvertExternalFBX(fbxPath);
+
             if (!string.IsNullOrEmpty(objPath))
             {
                 UnityEngine.Debug.Log("FBX conversion succeeded. OBJ: " + objPath);
@@ -534,14 +560,29 @@ internal class MyToolWindow : EditorWindow
                 return;
             }
         }
-        else if (modelPath.EndsWith(".obj", StringComparison.OrdinalIgnoreCase))
+        else if (objFiles.Length > 0)
         {
-            objPath = modelPath;
-            mtlPath = "";
+            // İlk OBJ dosyasını kullan
+            objPath = objFiles[0];
+
+            // İlgili MTL dosyasını bulmaya çalış
+            string objNameWithoutExt = Path.GetFileNameWithoutExtension(objPath);
+            string potentialMtlPath = Path.Combine(modelPath, objNameWithoutExt + ".mtl");
+            mtlPath = File.Exists(potentialMtlPath) ? potentialMtlPath : "";
+
             UnityEngine.Debug.Log("OBJ selected: " + objPath);
+            if (!string.IsNullOrEmpty(mtlPath))
+            {
+                UnityEngine.Debug.Log("MTL found: " + mtlPath);
+            }
+        }
+        else
+        {
+            UnityEngine.Debug.LogError("No FBX or OBJ files found in the folder.");
+            return;
         }
 
-        //Eğer config de varsa upload başlasın
+        // Eğer config de varsa upload başlasın
         if (!string.IsNullOrEmpty(configPath) && File.Exists(configPath))
         {
             EditorCoroutineUtility.StartCoroutineOwnerless(UploadModelAndConfig());
@@ -549,7 +590,7 @@ internal class MyToolWindow : EditorWindow
     }
 
 
-    private async Task ListenProgressWebSocket(string taskId)
+    internal async Task ListenProgressWebSocket(string taskId)
     {
         if (string.IsNullOrEmpty(taskId))
         {
@@ -632,7 +673,7 @@ internal class MyToolWindow : EditorWindow
 
 
 
-    private IEnumerator WaitForTask(Task task)
+    internal IEnumerator WaitForTask(Task task)
     {
         while (!task.IsCompleted)
             yield return null;
@@ -641,7 +682,7 @@ internal class MyToolWindow : EditorWindow
             UnityEngine.Debug.LogError(task.Exception);
     }
 
-    private async Task CloseWebSocketSafely()
+    internal async Task CloseWebSocketSafely()
     {
         if (webSocket != null && webSocket.State == WebSocketState.Open)
         {
@@ -656,7 +697,7 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
-    internal IEnumerator UploadModelAndConfig()
+    internal virtual IEnumerator UploadModelAndConfig()
     {
         if (string.IsNullOrEmpty(objPath) || !File.Exists(objPath) ||
             string.IsNullOrEmpty(configPath) || !File.Exists(configPath))
@@ -667,20 +708,49 @@ internal class MyToolWindow : EditorWindow
 
         WWWForm form = new WWWForm();
 
-        // Add .obj
+        // OBJ dosyasını yükle
         byte[] objData = File.ReadAllBytes(objPath);
-        form.AddBinaryData("obj_file", objData, Path.GetFileName(objPath));
+        string objFileName = Path.GetFileName(objPath);
+        form.AddBinaryData("obj_file", objData, objFileName);
 
-        // Add .mtl if exists
+        // MTL dosyasını yükle (eğer varsa)
         if (!string.IsNullOrEmpty(mtlPath) && File.Exists(mtlPath))
         {
             byte[] mtlData = File.ReadAllBytes(mtlPath);
-            form.AddBinaryData("mtl_file", mtlData, Path.GetFileName(mtlPath));
+            string mtlFileName = Path.GetFileName(mtlPath);
+            form.AddBinaryData("mtl_file", mtlData, mtlFileName);
         }
 
-        // Add config
+        // Texture dosyalarını bul ve yükle (PNG, JPG, JPEG, TGA, BMP)
+        string[] textureExtensions = { ".png", ".jpg", ".jpeg", ".tga", ".bmp", ".tif" };
+        foreach (string filePath in Directory.GetFiles(modelPath))
+        {
+            string extension = Path.GetExtension(filePath).ToLower();
+
+            // Düzeltilmiş Contains kullanımı
+            bool isTexture = false;
+            foreach (string texExt in textureExtensions)
+            {
+                if (extension == texExt)
+                {
+                    isTexture = true;
+                    break;
+                }
+            }
+
+            if (isTexture)
+            {
+                string textureFileName = Path.GetFileName(filePath);
+                byte[] textureData = File.ReadAllBytes(filePath);
+                form.AddBinaryData("texture_files", textureData, textureFileName);
+                UnityEngine.Debug.Log("Adding texture to upload: " + textureFileName);
+            }
+        }
+
+        // Config dosyasını yükle
         byte[] configData = File.ReadAllBytes(configPath);
-        form.AddBinaryData("config_file", configData, Path.GetFileName(configPath));
+        string configFileName = Path.GetFileName(configPath);
+        form.AddBinaryData("config_file", configData, configFileName);
 
         using (UnityWebRequest www = UnityWebRequest.Post(baseURL + "upload_model_config", form))
         {
@@ -697,7 +767,37 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
-    IEnumerator DownloadConfigs()
+
+    internal void UploadFolderContents()
+    {
+        try
+        {
+            string uploadsDir = Path.Combine(Application.dataPath, "..", "uploads");
+            Directory.CreateDirectory(uploadsDir);
+
+            foreach (string filePath in Directory.GetFiles(modelPath))
+            {
+                string extension = Path.GetExtension(filePath).ToLower();
+                string fileName = Path.GetFileName(filePath);
+
+                if (extension != ".fbx")
+                {
+                    string destPath = Path.Combine(uploadsDir, fileName);
+                    File.Copy(filePath, destPath, true);
+                    UnityEngine.Debug.Log("Copied file to uploads: " + fileName);
+                }
+            }
+
+            UnityEngine.Debug.Log("Folder contents copied to uploads successfully");
+        }
+        catch (Exception ex)
+        {
+            UnityEngine.Debug.LogError("Error copying folder contents: " + ex.Message);
+        }
+    }
+
+
+    internal virtual IEnumerator DownloadConfigs()
     {
         string desktopPath = System.Environment.GetFolderPath(System.Environment.SpecialFolder.Desktop);
         string configsFolder = System.IO.Path.Combine(desktopPath, "ConfigsFolder");
@@ -745,10 +845,7 @@ internal class MyToolWindow : EditorWindow
                 Directory.Delete(folderPath, true); // 'true' recursive silme için
                 UnityEngine.Debug.Log($"Deleted folder and contents: {folderPath}");
             }
-            else
-            {
-                UnityEngine.Debug.LogWarning($"Folder does not exist: {folderPath}");
-            }
+            
         }
         catch (Exception e)
         {
