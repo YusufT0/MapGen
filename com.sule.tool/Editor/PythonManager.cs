@@ -11,9 +11,9 @@ using UnityEngine.EventSystems;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-
 internal class MyToolWindow : EditorWindow
 {
+    // File paths for model and configuration files
     internal string modelPath = "";
     internal string objPath = "";
     internal string mtlPath = "";
@@ -22,61 +22,68 @@ internal class MyToolWindow : EditorWindow
 
     internal string newModelPath = "";
 
+    // UI state flags
     internal bool showAbsolutePathWarning = false;
     internal bool showConfigFoldout;
     internal bool showMapFoldout;
 
+    // Folder paths for downloaded content
     internal string desktopPath;
     internal string configFolder;
     internal string mapFolder;
 
+    // Server connection settings
     internal string baseURL = "http://127.0.0.1:8000/";
 
-    // for Progress bar 
+    // Progress tracking variables
     internal bool showProgressBar = false;
     internal float progress = 0f;
     internal WebSocket webSocket;
     internal string currentTaskId = "";
 
+    // Menu item to open the tool window
     [MenuItem("Tools/MapGen")]
     public static void ShowWindow()
     {
         GetWindow<MyToolWindow>("MapGen");
     }
 
-    protected IWebRequestHandler requestHandler = new WebRequestHandler();
+    // Dependency injection for web request handling (for testing)
+    internal IWebRequestHandler requestHandler = new WebRequestHandler();
 
     internal void SetRequestHandler(IWebRequestHandler handler)
     {
         this.requestHandler = handler;
     }
 
+    // Initialize window state
     internal void OnEnable()
     {
         showConfigFoldout = false;
         showMapFoldout = false;
-
     }
 
+    // Main GUI rendering method
     internal void OnGUI()
     {
         Event evt = Event.current;
 
         GUILayout.Label("Input Fields", EditorStyles.boldLabel);
 
-        // === MODEL KLASÖRÜ (Eski Model dosyası) ===
+        // === MODEL FOLDER SELECTION ===
         GUILayout.BeginHorizontal();
         Rect modelRect = GUILayoutUtility.GetRect(new GUIContent("Model Folder"), GUI.skin.textField);
         GUI.SetNextControlName("Model Folder");
         newModelPath = EditorGUI.TextField(modelRect, "Model Folder", newModelPath);
 
-        // Eğer kullanıcı elle yazdıysa, sadece "Enter" tuşuna bastığında kabul et
+        // Handle Enter key press for manual input validation
         if (evt.isKey && evt.type == EventType.KeyDown && evt.keyCode == KeyCode.Return)
         {
             string focused = GUI.GetNameOfFocusedControl();
 
             if (focused == "Model Folder")
             {
+                // Validate absolute path
                 if (!Path.IsPathRooted(newModelPath))
                 {
                     PopupMessageManager("Warning", "Please enter absolute path");
@@ -89,11 +96,12 @@ internal class MyToolWindow : EditorWindow
                 {
                     UnityEngine.Debug.Log("Model Folder DONE");
                     modelPath = newModelPath;
-                    ProcessModelFolder(); // Değişti: ProcessModelPath yerine ProcessModelFolder
+                    ProcessModelFolder(); // Process the selected model folder
                 }
             }
             else if (focused == "Config (.yaml)")
             {
+                // Validate config file path
                 if (!Path.IsPathRooted(configPath))
                 {
                     PopupMessageManager("Warning", "Please enter absolute path");
@@ -105,6 +113,7 @@ internal class MyToolWindow : EditorWindow
                 else
                 {
                     UnityEngine.Debug.Log("Config accepted: " + configPath);
+                    // Auto-upload if model is already selected
                     if (!string.IsNullOrEmpty(objPath) && File.Exists(objPath))
                     {
                         EditorCoroutineUtility.StartCoroutineOwnerless(UploadModelAndConfig());
@@ -113,6 +122,7 @@ internal class MyToolWindow : EditorWindow
             }
         }
 
+        // Helper function to display popup messages
         void PopupMessageManager(string title, string message)
         {
             showAbsolutePathWarning = true;
@@ -127,24 +137,26 @@ internal class MyToolWindow : EditorWindow
             }
         }
 
+        // Browse button for folder selection
         if (GUILayout.Button("Browse", GUILayout.MaxWidth(80)))
         {
-            // File yerine Folder seçimi
+            // Open folder selection dialog
             string path = EditorUtility.OpenFolderPanel("Select Model Folder", "", "");
             if (!string.IsNullOrEmpty(path))
             {
                 newModelPath = Path.GetFullPath(path);
                 modelPath = newModelPath;
-                ProcessModelFolder(); // Değişti: ProcessModelPath yerine ProcessModelFolder
+                ProcessModelFolder(); // Process the selected folder
             }
         }
         GUILayout.EndHorizontal();
 
-        // Model alanı için drag drop (klasör desteği ile)
+        // Drag and drop support for model folder
         if (modelRect.Contains(evt.mousePosition))
         {
             if (evt.type == EventType.DragUpdated)
             {
+                // Validate dragged items are folders
                 bool hasValidFolder = false;
                 foreach (var path in DragAndDrop.paths)
                 {
@@ -159,6 +171,7 @@ internal class MyToolWindow : EditorWindow
             }
             else if (evt.type == EventType.DragPerform)
             {
+                // Accept folder drag and drop
                 DragAndDrop.AcceptDrag();
                 foreach (var path in DragAndDrop.paths)
                 {
@@ -167,7 +180,7 @@ internal class MyToolWindow : EditorWindow
                         UnityEngine.Debug.Log("Model folder dragged: " + path);
                         newModelPath = Path.GetFullPath(path);
                         modelPath = newModelPath;
-                        ProcessModelFolder(); // Değişti: ProcessModelPath yerine ProcessModelFolder
+                        ProcessModelFolder(); // Process the dragged folder
                         break;
                     }
                 }
@@ -175,19 +188,20 @@ internal class MyToolWindow : EditorWindow
             }
         }
 
-        // === CONFIG DOSYASI (Aynı kalacak) ===
+        // === CONFIG FILE SELECTION ===
         GUILayout.BeginHorizontal();
         Rect configRect = GUILayoutUtility.GetRect(new GUIContent("Config (.yaml)"), GUI.skin.textField);
         GUI.SetNextControlName("Config (.yaml)");
         configPath = EditorGUI.TextField(configRect, "Config (.yaml)", configPath);
 
+        // Browse button for config file selection
         if (GUILayout.Button("Browse", GUILayout.MaxWidth(80)))
         {
             string path = EditorUtility.OpenFilePanel("Select Config YAML", "", "yaml,yml");
             if (!string.IsNullOrEmpty(path))
             {
                 configPath = path;
-                // Eğer model zaten seçilmişse, otomatik upload başlat
+                // Auto-upload if model is already selected
                 if (!string.IsNullOrEmpty(objPath) && File.Exists(objPath))
                 {
                     EditorCoroutineUtility.StartCoroutineOwnerless(UploadModelAndConfig());
@@ -196,7 +210,7 @@ internal class MyToolWindow : EditorWindow
         }
         GUILayout.EndHorizontal();
 
-        // Config alanı için drag drop (aynı kalacak)
+        // Drag and drop support for config files
         if ((evt.type == EventType.DragUpdated || evt.type == EventType.DragPerform) && configRect.Contains(evt.mousePosition))
         {
             DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
@@ -207,11 +221,12 @@ internal class MyToolWindow : EditorWindow
                 foreach (var path in DragAndDrop.paths)
                 {
                     string ext = Path.GetExtension(path).ToLower();
+                    // Only accept YAML files
                     if (ext == ".yaml" || ext == ".yml")
                     {
                         configPath = path;
                         UnityEngine.Debug.Log("Config file dragged: " + path);
-                        // Eğer model zaten seçilmişse, otomatik upload başlat
+                        // Auto-upload if model is already selected
                         if (!string.IsNullOrEmpty(objPath) && File.Exists(objPath))
                         {
                             EditorCoroutineUtility.StartCoroutineOwnerless(UploadModelAndConfig());
@@ -227,17 +242,20 @@ internal class MyToolWindow : EditorWindow
             }
         }
 
+        // Clear uploaded files button
         if (GUILayout.Button("Clear Uploads"))
         {
             UnityEngine.Debug.Log("Clear Uploads clicked");
             EditorCoroutineUtility.StartCoroutineOwnerless(ClearDirectoryCoroutine("clear_uploads"));
         }
 
+        // === CONFIG MANAGEMENT FOLDOUT ===
         showConfigFoldout = EditorGUILayout.Foldout(showConfigFoldout, "Config Management", true);
         if (showConfigFoldout)
         {
             EditorGUI.indentLevel++;
 
+            // Create configs from current model
             if (GUILayout.Button("Create Configs"))
             {
                 UnityEngine.Debug.Log("Create Configs clicked");
@@ -252,12 +270,14 @@ internal class MyToolWindow : EditorWindow
                 EditorCoroutineUtility.StartCoroutineOwnerless(SendCreateConfigsRequest(json));
             }
 
+            // Download and show available configs
             if (GUILayout.Button("Show Configs"))
             {
                 UnityEngine.Debug.Log("Show Configs clicked");
                 EditorCoroutineUtility.StartCoroutineOwnerless(ShowConfigsCoroutine());
             }
 
+            // Clear config files
             if (GUILayout.Button("Clear Configs"))
             {
                 UnityEngine.Debug.Log("Clear Configs clicked");
@@ -268,25 +288,27 @@ internal class MyToolWindow : EditorWindow
             EditorGUI.indentLevel--;
         }
 
-
-        // === MAP FOLDOUT ===
+        // === MAP MANAGEMENT FOLDOUT ===
         showMapFoldout = EditorGUILayout.Foldout(showMapFoldout, "Map Management", true);
         if (showMapFoldout)
         {
             EditorGUI.indentLevel++;
 
+            // Generate maps from current model
             if (GUILayout.Button("Create Maps"))
             {
                 UnityEngine.Debug.Log("Create Maps clicked");
                 EditorCoroutineUtility.StartCoroutineOwnerless(CreateMapsAndListenProgress());
             }
 
+            // Download and show generated maps
             if (GUILayout.Button("Show Maps"))
             {
                 UnityEngine.Debug.Log("Show Maps clicked");
                 EditorCoroutineUtility.StartCoroutineOwnerless(ShowMapsCoroutine());
             }
 
+            // Clear map files
             if (GUILayout.Button("Clear Maps"))
             {
                 UnityEngine.Debug.Log("Clear Maps clicked");
@@ -297,7 +319,7 @@ internal class MyToolWindow : EditorWindow
             EditorGUI.indentLevel--;
         }
 
-
+        // Process WebSocket messages if connection is open
         if (webSocket != null && webSocket.State == WebSocketState.Open)
         {
             try
@@ -310,6 +332,7 @@ internal class MyToolWindow : EditorWindow
             }
         }
 
+        // Display progress bar if map generation is in progress
         if (showProgressBar)
         {
             GUILayout.Space(10);
@@ -318,9 +341,9 @@ internal class MyToolWindow : EditorWindow
             EditorGUI.ProgressBar(rect, progress, "Progress");
             Repaint();
         }
-
     }
 
+    // Send request to create configuration files on server
     internal virtual IEnumerator SendCreateConfigsRequest(string json)
     {
         string url = baseURL + "create_configs";
@@ -334,7 +357,7 @@ internal class MyToolWindow : EditorWindow
 
             yield return www.SendWebRequest();
 
-            // HTTP isteği başarısızsa hata mesajı yaz
+            // Handle HTTP request failure
             if (www.result != UnityWebRequest.Result.Success)
             {
                 UnityEngine.Debug.LogError($"Error {www.responseCode}: {www.downloadHandler.text}");
@@ -346,16 +369,19 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
+    // Coroutine to download and display configuration files
     internal virtual IEnumerator ShowConfigsCoroutine()
     {
         desktopPath = System.Environment.GetFolderPath(System.Environment.SpecialFolder.Desktop);
         configFolder = System.IO.Path.Combine(desktopPath, "ConfigsFolder");
 
+        // Create config folder if it doesn't exist
         if (!Directory.Exists(configFolder))
         {
             Directory.CreateDirectory(configFolder);
         }
 
+        // Get list of available config files from server
         UnityWebRequest listRequest = UnityWebRequest.Get(baseURL + "configs/list");
         yield return listRequest.SendWebRequest();
 
@@ -365,8 +391,10 @@ internal class MyToolWindow : EditorWindow
             yield break;
         }
 
+        // Parse file list from JSON response
         ConfigList files = JsonUtility.FromJson<ConfigList>(listRequest.downloadHandler.text);
 
+        // Download each config file
         foreach (string file in files.files)
         {
             string fileUrl = baseURL + $"configs/file/{file}";
@@ -384,11 +412,11 @@ internal class MyToolWindow : EditorWindow
             }
         }
 
+        // Open folder in file explorer
         OpenFolderInExplorer(configFolder);
     }
 
-
-
+    // Coroutine to clear directory on server
     internal virtual IEnumerator ClearDirectoryCoroutine(string endpoint)
     {
         string url = baseURL + endpoint;
@@ -408,12 +436,13 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
-
+    // Coroutine to create maps and monitor progress via WebSocket
     internal virtual IEnumerator CreateMapsAndListenProgress()
     {
         showProgressBar = true;
         progress = 0f;
 
+        // Initialize progress tracking on server
         string startProgressUrl = baseURL + $"start_progress/{Guid.NewGuid()}";
         using (UnityWebRequest www = UnityWebRequest.Get(startProgressUrl))
         {
@@ -431,6 +460,7 @@ internal class MyToolWindow : EditorWindow
             }
         }
 
+        // Prepare map creation request data
         CreatorRequest sendData = new CreatorRequest
         {
             base_map = objPath.Replace("\\", "/")
@@ -438,6 +468,7 @@ internal class MyToolWindow : EditorWindow
 
         string json = JsonUtility.ToJson(sendData);
 
+        // Send map creation request to server
         using (UnityWebRequest www = new UnityWebRequest(baseURL + "create_maps", "POST"))
         {
             byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
@@ -457,10 +488,11 @@ internal class MyToolWindow : EditorWindow
             {
                 UnityEngine.Debug.Log("Create Maps Response: " + www.downloadHandler.text);
 
+                // Parse response to get task ID for progress tracking
                 CreateMapsResponse responseObj = JsonUtility.FromJson<CreateMapsResponse>(www.downloadHandler.text);
                 if (responseObj == null || string.IsNullOrEmpty(responseObj.task_id))
                 {
-                    UnityEngine.Debug.LogError("Task ID alınamadı!");
+                    UnityEngine.Debug.LogError("Task ID not received!");
                     showProgressBar = false;
                     yield break;
                 }
@@ -468,19 +500,21 @@ internal class MyToolWindow : EditorWindow
             }
         }
 
+        // Wait for WebSocket progress monitoring to complete
         yield return WaitForTask(ListenProgressWebSocket(currentTaskId));
     }
 
-
-
+    // Coroutine to download and display generated maps
     internal virtual IEnumerator ShowMapsCoroutine()
     {
         string desktopPath = System.Environment.GetFolderPath(System.Environment.SpecialFolder.Desktop);
         mapFolder = Path.Combine(desktopPath, "MapsFolder");
 
+        // Create maps folder if it doesn't exist
         if (!Directory.Exists(mapFolder))
             Directory.CreateDirectory(mapFolder);
 
+        // Get list of available map files from server
         UnityWebRequest listRequest = UnityWebRequest.Get(baseURL + "maps/list");
         yield return listRequest.SendWebRequest();
 
@@ -490,8 +524,10 @@ internal class MyToolWindow : EditorWindow
             yield break;
         }
 
+        // Parse file list from JSON response
         ConfigList files = JsonUtility.FromJson<ConfigList>(listRequest.downloadHandler.text);
 
+        // Download each map file
         foreach (string file in files.files)
         {
             string fileUrl = baseURL + $"maps/file/{file}";
@@ -509,11 +545,11 @@ internal class MyToolWindow : EditorWindow
             }
         }
 
+        // Open folder in file explorer
         OpenFolderInExplorer(mapFolder);
     }
 
-
-
+    // Parse file path from JSON response
     internal static string ParsePathFromJson(string json)
     {
         try
@@ -528,25 +564,27 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
+    // Open folder in system file explorer
     internal virtual void OpenFolderInExplorer(string path)
     {
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-    System.Diagnostics.Process.Start("explorer.exe", path.Replace("/", "\\"));
+        System.Diagnostics.Process.Start("explorer.exe", path.Replace("/", "\\"));
 #elif UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
-    System.Diagnostics.Process.Start("open", path);
+        System.Diagnostics.Process.Start("open", path);
 #endif
     }
 
-
+    // Process model folder to find and convert 3D model files
     internal void ProcessModelFolder()
     {
-        // Klasördeki FBX dosyalarını bul
+        // Find FBX and OBJ files in the selected folder
         string[] fbxFiles = Directory.GetFiles(modelPath, "*.fbx", SearchOption.TopDirectoryOnly);
         string[] objFiles = Directory.GetFiles(modelPath, "*.obj", SearchOption.TopDirectoryOnly);
 
+        // Prioritize FBX files for conversion
         if (fbxFiles.Length > 0)
         {
-            // İlk FBX dosyasını kullan
+            // Use first FBX file found
             string fbxPath = fbxFiles[0];
             (objPath, mtlPath) = FBXtoOBJExporter.ConvertExternalFBX(fbxPath);
 
@@ -562,10 +600,10 @@ internal class MyToolWindow : EditorWindow
         }
         else if (objFiles.Length > 0)
         {
-            // İlk OBJ dosyasını kullan
+            // Use first OBJ file found
             objPath = objFiles[0];
 
-            // İlgili MTL dosyasını bulmaya çalış
+            // Try to find corresponding MTL file
             string objNameWithoutExt = Path.GetFileNameWithoutExtension(objPath);
             string potentialMtlPath = Path.Combine(modelPath, objNameWithoutExt + ".mtl");
             mtlPath = File.Exists(potentialMtlPath) ? potentialMtlPath : "";
@@ -582,14 +620,14 @@ internal class MyToolWindow : EditorWindow
             return;
         }
 
-        // Eğer config de varsa upload başlasın
+        // Auto-upload if config file is also selected
         if (!string.IsNullOrEmpty(configPath) && File.Exists(configPath))
         {
             EditorCoroutineUtility.StartCoroutineOwnerless(UploadModelAndConfig());
         }
     }
 
-
+    // WebSocket connection for real-time progress monitoring
     internal async Task ListenProgressWebSocket(string taskId)
     {
         if (string.IsNullOrEmpty(taskId))
@@ -598,11 +636,13 @@ internal class MyToolWindow : EditorWindow
             return;
         }
 
+        // WebSocket URL for progress updates
         string wsUrl = $"ws://127.0.0.1:8000/ws/progress/{taskId}";
         UnityEngine.Debug.Log($"Attempting WebSocket connection to: {wsUrl}");
 
         webSocket = new WebSocket(wsUrl);
 
+        // WebSocket event handlers
         webSocket.OnOpen += () =>
         {
             UnityEngine.Debug.Log("WebSocket connection opened.");
@@ -614,12 +654,10 @@ internal class MyToolWindow : EditorWindow
             showProgressBar = false;
         };
 
-
         webSocket.OnError += (e) =>
         {
             showProgressBar = false;
         };
-
 
         webSocket.OnMessage += async (bytes) =>
         {
@@ -627,6 +665,7 @@ internal class MyToolWindow : EditorWindow
 
             if (string.IsNullOrWhiteSpace(message)) return;
 
+            // Parse progress message from JSON
             var msg = JsonUtility.FromJson<ProgressMessage>(message);
             if (msg == null)
             {
@@ -634,19 +673,20 @@ internal class MyToolWindow : EditorWindow
                 return;
             }
 
+            // Update progress bar
             progress = Mathf.Clamp01(msg.progress);
 
+            // Handle completion
             if (progress >= 1f)
             {
                 UnityEngine.Debug.Log("Progress complete.");
                 showProgressBar = false;
 
                 await CloseWebSocketSafely();
-
             }
         };
 
-
+        // Establish WebSocket connection
         try
         {
             await webSocket.Connect();
@@ -659,7 +699,7 @@ internal class MyToolWindow : EditorWindow
             return;
         }
 
-
+        // Process incoming messages while connection is open
         while (webSocket != null && webSocket.State == WebSocketState.Open)
         {
             webSocket.DispatchMessageQueue();
@@ -668,11 +708,9 @@ internal class MyToolWindow : EditorWindow
 
         webSocket = null;
         UnityEngine.Debug.Log("WebSocket closed and cleaned up.");
-
     }
 
-
-
+    // Coroutine to wait for async task completion
     internal IEnumerator WaitForTask(Task task)
     {
         while (!task.IsCompleted)
@@ -682,6 +720,7 @@ internal class MyToolWindow : EditorWindow
             UnityEngine.Debug.LogError(task.Exception);
     }
 
+    // Safely close WebSocket connection
     internal async Task CloseWebSocketSafely()
     {
         if (webSocket != null && webSocket.State == WebSocketState.Open)
@@ -697,8 +736,10 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
+    // Upload model files and configuration to server
     internal virtual IEnumerator UploadModelAndConfig()
     {
+        // Validate file paths
         if (string.IsNullOrEmpty(objPath) || !File.Exists(objPath) ||
             string.IsNullOrEmpty(configPath) || !File.Exists(configPath))
         {
@@ -708,12 +749,12 @@ internal class MyToolWindow : EditorWindow
 
         WWWForm form = new WWWForm();
 
-        // OBJ dosyasını yükle
+        // Upload OBJ file
         byte[] objData = File.ReadAllBytes(objPath);
         string objFileName = Path.GetFileName(objPath);
         form.AddBinaryData("obj_file", objData, objFileName);
 
-        // MTL dosyasını yükle (eğer varsa)
+        // Upload MTL file if exists
         if (!string.IsNullOrEmpty(mtlPath) && File.Exists(mtlPath))
         {
             byte[] mtlData = File.ReadAllBytes(mtlPath);
@@ -721,13 +762,13 @@ internal class MyToolWindow : EditorWindow
             form.AddBinaryData("mtl_file", mtlData, mtlFileName);
         }
 
-        // Texture dosyalarını bul ve yükle (PNG, JPG, JPEG, TGA, BMP)
+        // Find and upload texture files
         string[] textureExtensions = { ".png", ".jpg", ".jpeg", ".tga", ".bmp", ".tif" };
         foreach (string filePath in Directory.GetFiles(modelPath))
         {
             string extension = Path.GetExtension(filePath).ToLower();
 
-            // Düzeltilmiş Contains kullanımı
+            // Check if file is a supported texture format
             bool isTexture = false;
             foreach (string texExt in textureExtensions)
             {
@@ -747,11 +788,12 @@ internal class MyToolWindow : EditorWindow
             }
         }
 
-        // Config dosyasını yükle
+        // Upload config file
         byte[] configData = File.ReadAllBytes(configPath);
         string configFileName = Path.GetFileName(configPath);
         form.AddBinaryData("config_file", configData, configFileName);
 
+        // Send upload request to server
         using (UnityWebRequest www = UnityWebRequest.Post(baseURL + "upload_model_config", form))
         {
             yield return www.SendWebRequest();
@@ -767,7 +809,7 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
-
+    // Copy folder contents to uploads directory (legacy function)
     internal void UploadFolderContents()
     {
         try
@@ -775,6 +817,7 @@ internal class MyToolWindow : EditorWindow
             string uploadsDir = Path.Combine(Application.dataPath, "..", "uploads");
             Directory.CreateDirectory(uploadsDir);
 
+            // Copy all non-FBX files to uploads directory
             foreach (string filePath in Directory.GetFiles(modelPath))
             {
                 string extension = Path.GetExtension(filePath).ToLower();
@@ -796,7 +839,7 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
-
+    // Download config files from server (legacy function)
     internal virtual IEnumerator DownloadConfigs()
     {
         string desktopPath = System.Environment.GetFolderPath(System.Environment.SpecialFolder.Desktop);
@@ -804,8 +847,8 @@ internal class MyToolWindow : EditorWindow
         if (!System.IO.Directory.Exists(configsFolder))
             System.IO.Directory.CreateDirectory(configsFolder);
 
-        // Dosya listesini al
-        UnityWebRequest www = UnityWebRequest.Get( baseURL + "/configs/list");
+        // Get list of config files from server
+        UnityWebRequest www = UnityWebRequest.Get(baseURL + "/configs/list");
         yield return www.SendWebRequest();
 
         if (www.result != UnityWebRequest.Result.Success)
@@ -817,6 +860,7 @@ internal class MyToolWindow : EditorWindow
         var json = www.downloadHandler.text;
         var files = JsonUtility.FromJson<ConfigList>(json);
 
+        // Download each config file
         foreach (string file in files.files)
         {
             string fileUrl = baseURL + $"/configs/file/{file}";
@@ -836,22 +880,20 @@ internal class MyToolWindow : EditorWindow
         }
     }
 
+    // Delete folder and all its contents
     internal void ClearFolderandDelete(string folderPath)
     {
         try
         {
             if (Directory.Exists(folderPath))
             {
-                Directory.Delete(folderPath, true); // 'true' recursive silme için
+                Directory.Delete(folderPath, true); // 'true' for recursive deletion
                 UnityEngine.Debug.Log($"Deleted folder and contents: {folderPath}");
             }
-            
         }
         catch (Exception e)
         {
             UnityEngine.Debug.LogError($"Error deleting folder {folderPath}: {e.Message}");
         }
     }
-
-
 }

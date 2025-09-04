@@ -7,13 +7,14 @@ using System;
 
 public static class FBXtoOBJExporter
 {
-    // Converts an external FBX file to OBJ and MTL files in the Assets/Temp folder
+    // Converts an external FBX file to OBJ and MTL files inside the Assets/Temp folder.
+    // Returns absolute paths to the generated OBJ and MTL files, or (null, null) on failure.
     public static (string objPath, string mtlPath) ConvertExternalFBX(string externalFbxPath)
     {
-        // Eðer kullanýcý sadece dosya adý yazdýysa ve bu yol mutlak deðilse
+        // If the given path is not absolute
         if (!Path.IsPathRooted(externalFbxPath))
         {
-            // Eðer yol zaten "Assets/" ile baþlýyorsa, doðrudan çöz
+            // If the path starts with "Assets", resolve it relative to the project root folder
             if (externalFbxPath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase))
             {
                 string fullPath = Path.Combine(Directory.GetParent(Application.dataPath).FullName, externalFbxPath);
@@ -30,7 +31,7 @@ public static class FBXtoOBJExporter
             }
             else
             {
-                // Diðer tüm göreli yollar için Assets altýna ekle
+                // For all other relative paths, assume they are inside the Assets folder
                 string assumedUnityPath = Path.Combine(Application.dataPath, externalFbxPath);
 
                 if (File.Exists(assumedUnityPath))
@@ -45,7 +46,7 @@ public static class FBXtoOBJExporter
             }
         }
 
-        // Check if the input FBX file exists
+        // Check if the input FBX file exists at the resolved path
         if (!File.Exists(externalFbxPath))
         {
             Debug.LogError("Invalid FBX path: " + externalFbxPath);
@@ -54,17 +55,17 @@ public static class FBXtoOBJExporter
 
         string tempFolder = "Assets/Temp";
 
-        // Create the Temp folder if it does not exist
+        // Create the Temp folder if it does not already exist
         if (!Directory.Exists(tempFolder))
             Directory.CreateDirectory(tempFolder);
 
         string fbxFileName = Path.GetFileName(externalFbxPath);
         string tempFbxPath = Path.Combine(tempFolder, fbxFileName);
 
-        // Copy the FBX file into the Temp folder (overwrite if exists)
+        // Copy the FBX file into the Temp folder (overwrite if it already exists)
         File.Copy(externalFbxPath, tempFbxPath, true);
 
-        // Import the copied asset so Unity recognizes it
+        // Import the copied asset so Unity recognizes it in the project
         AssetDatabase.ImportAsset(tempFbxPath);
         AssetDatabase.Refresh();
 
@@ -76,56 +77,56 @@ public static class FBXtoOBJExporter
             return (null, null);
         }
 
-        // Get the MeshFilter and Renderer components from the imported asset
+        // Retrieve MeshFilter and Renderer components from the imported GameObject
         MeshFilter meshFilter = go.GetComponentInChildren<MeshFilter>();
         Renderer renderer = go.GetComponentInChildren<Renderer>();
 
-        // Check if mesh or renderer components are missing
+        // Verify that mesh and renderer components are found
         if (meshFilter == null || renderer == null)
         {
             Debug.LogError("MeshFilter or Renderer not found.");
             return (null, null);
         }
 
-        // Access the mesh and material data
+        // Access the mesh and material data from the components
         Mesh mesh = meshFilter.sharedMesh;
         Material material = renderer.sharedMaterial;
 
-        // Validate mesh and material
+        // Validate mesh and material are not null
         if (mesh == null || material == null)
         {
             Debug.LogError("Mesh or Material is null.");
             return (null, null);
         }
 
-        // Prepare output file paths for OBJ and MTL files
+        // Prepare file paths for the output OBJ and MTL files in the Temp folder
         string baseName = Path.GetFileNameWithoutExtension(fbxFileName);
         string objPath = Path.Combine(tempFolder, baseName + ".obj");
         string mtlPath = Path.Combine(tempFolder, baseName + ".mtl");
 
-        // Write the MTL (material) file
+        // Write the MTL file with material properties
         File.WriteAllText(mtlPath, CreateMTL(material));
 
-        // Write the OBJ file, referencing the MTL file and mesh data
+        // Write the OBJ file, referencing the MTL file and including mesh data
         using (StreamWriter sw = new StreamWriter(objPath, false, Encoding.UTF8))
         {
-            sw.WriteLine($"mtllib {Path.GetFileName(mtlPath)}");            // Reference the material file
-            sw.WriteLine($"usemtl {material.name.Replace(" ", "_")}");     // Use the material name
-            sw.Write(MeshToString(mesh, go.transform));                    // Write vertex, normal, UV, and face data
+            sw.WriteLine($"mtllib {Path.GetFileName(mtlPath)}");          // Reference the material library
+            sw.WriteLine($"usemtl {material.name.Replace(" ", "_")}");   // Use the material by name
+            sw.Write(MeshToString(mesh, go.transform));                  // Write vertices, normals, UVs, and faces
         }
 
-        // Refresh AssetDatabase so Unity recognizes the new files
+        // Refresh AssetDatabase so Unity updates the project files view
         AssetDatabase.Refresh();
 
         Debug.Log("OBJ and MTL files created:");
         Debug.Log("OBJ: " + objPath);
         Debug.Log("MTL: " + mtlPath);
 
-        // Return absolute paths for further use
+        // Return absolute paths to the created files
         return (Path.GetFullPath(objPath), Path.GetFullPath(mtlPath));
     }
 
-    // Creates the content for the MTL file based on the material properties
+    // Creates the content of the MTL file based on the given material's properties
     private static string CreateMTL(Material mat)
     {
         StringBuilder sb = new StringBuilder();
@@ -133,31 +134,33 @@ public static class FBXtoOBJExporter
 
         sb.AppendLine($"newmtl {matName}");
 
-        // Use the material color if available, otherwise default to white
+        // Use the material's color property if it exists, else default to white
         Color color = mat.HasProperty("_Color") ? mat.color : Color.white;
-        sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "Kd {0} {1} {2}", color.r, color.g, color.b)); // Diffuse color
-        sb.AppendLine("Ka 0.000 0.000 0.000"); // Ambient color
-        sb.AppendLine("Ks 0.000 0.000 0.000"); // Specular color
+
+        // Write the diffuse color (Kd) with invariant culture decimal formatting
+        sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "Kd {0} {1} {2}", color.r, color.g, color.b));
+        sb.AppendLine("Ka 0.000 0.000 0.000"); // Ambient color (black)
+        sb.AppendLine("Ks 0.000 0.000 0.000"); // Specular color (black)
         sb.AppendLine("Ns 10.000");             // Specular exponent
-        sb.AppendLine("d 1.0");                 // Dissolve (opacity)
+        sb.AppendLine("d 1.0");                 // Dissolve (opacity) fully opaque
 
         return sb.ToString();
     }
 
-    // Converts the mesh data into the OBJ file format as a string
+    // Converts the mesh data into OBJ file format text, including vertices, normals, UVs, and faces
     private static string MeshToString(Mesh mesh, Transform transform)
     {
         StringBuilder sb = new StringBuilder();
         CultureInfo ci = CultureInfo.InvariantCulture;
 
-        // Write vertices (v)
+        // Write vertex positions (v), transformed to world space
         foreach (Vector3 v in mesh.vertices)
         {
             Vector3 wv = transform.TransformPoint(v);
             sb.AppendLine(string.Format(ci, "v {0} {1} {2}", wv.x, wv.y, wv.z));
         }
 
-        // Write vertex normals (vn)
+        // Write vertex normals (vn), transformed to world space directions
         foreach (Vector3 n in mesh.normals)
         {
             Vector3 wn = transform.TransformDirection(n);
@@ -170,7 +173,7 @@ public static class FBXtoOBJExporter
             sb.AppendLine(string.Format(ci, "vt {0} {1}", uv.x, uv.y));
         }
 
-        // Write faces (f) per submesh, triangles grouped by 3 indices
+        // Write faces (f) per submesh - each face defined by vertex/uv/normal indices (1-based)
         for (int i = 0; i < mesh.subMeshCount; i++)
         {
             int[] triangles = mesh.GetTriangles(i);
@@ -179,7 +182,6 @@ public static class FBXtoOBJExporter
                 int a = triangles[j] + 1;
                 int b = triangles[j + 1] + 1;
                 int c = triangles[j + 2] + 1;
-                // OBJ indices are 1-based and include vertex/uv/normal indices
                 sb.AppendLine($"f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}");
             }
         }
