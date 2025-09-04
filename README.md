@@ -160,6 +160,45 @@ smoothness: random
 
 ---
 
+## Running Tests with Unity Test Framework
+
+This project uses the **Unity Test Framework** for automated testing. Follow these steps to run tests inside the Unity Editor.
+
+### How to Run Tests Locally
+
+1. **Open Your Project in Unity Editor**  
+   Launch Unity Hub and open this project.
+
+2. **Open the Test Runner Window**  
+   Go to the menu:  
+   `Window` → `General` → `Test Runner`  
+   This will open the Unity Test Runner panel.
+
+3. **Choose Test Mode**  
+   In the Test Runner, select **Edit Mode** to run tests that don’t require Play Mode.
+
+4. **Run Tests**  
+   Click the **Run All** button to execute all tests.  
+   The test results will appear in the Test Runner window, showing which tests passed or failed.
+
+---
+
+## Running Tests with pytest
+
+This project uses `pytest` as the testing framework. Follow the steps below to run the tests locally.
+
+### How to Run Tests Locally
+
+1. **Open Terminal**
+
+2. **Run all tests by typing:**
+   ```bash
+   pytest
+   ```
+   Check the test results in the terminal output.
+
+---
+
 ##  Docker
 - The backend service is containerized using Docker for easy deployment and scalability.
 - You can find the Docker image on Docker Hub: [mapgen-backend](https://hub.docker.com/r/sule194/mapgen-backend)
