@@ -680,8 +680,11 @@ internal class MyToolWindow : EditorWindow
             if (progress >= 1f)
             {
                 UnityEngine.Debug.Log("Progress complete.");
-                showProgressBar = false;
 
+                // Let the progress bar stay visible for 2 seconds after reaching 100%
+                await Task.Delay(2000);
+
+                showProgressBar = false;
                 await CloseWebSocketSafely();
             }
         };
