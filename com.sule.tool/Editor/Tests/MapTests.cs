@@ -1,115 +1,114 @@
-using System.Collections;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
-
-internal class TestableMapManager : MyToolWindow
-{
-    //CreateMap kýsmý
-    public bool SendCreateMapsRequestCalled = false;
-    public string PassedMapsJson = null;
-
-    internal override IEnumerator SendCreateMapsRequest(string json)
-    {
-        SendCreateMapsRequestCalled = true;
-        PassedMapsJson = json;
-        yield return null; // coroutine simülasyonu
-    }
-
-    //ShowMap kýsmý
-    public string MockJsonResponse = "{\"path\": \"C:/MockMapsFolder\"}";
-    public bool DirectoryExists = true;
-    public bool OpenFolderCalled = false;
-
-    internal override System.Collections.IEnumerator ShowMapsCoroutine()
-    {
-        string path = ParsePathFromJson(MockJsonResponse);
-
-        if (!string.IsNullOrEmpty(path) && DirectoryExists)
-        {
-            OpenFolderCalled = true;
-            OpenFolderInExplorer(path);
-        }
-        else
-        {
-            UnityEngine.Debug.LogError("Invalid path or folder does not exists: " + path);
-        }
-        yield return null;
-    }
-
-    // OpenFolderInExplorer metodu bozulmadan override edilebilir veya izlenebilir:
-    internal override void OpenFolderInExplorer(string path)
-    {
-        OpenFolderCalled = true;
-    }
-}
+using System.Collections;
 
 public class MapTests
 {
-    //CretaeMaps Test
-    [UnityTest]
-    public IEnumerator CreateMapsRequest_Triggers_CorrectJson()
+    private MyToolWindow toolWindow;
+
+    [SetUp]
+    public void Setup()
     {
-        var manager = ScriptableObject.CreateInstance<TestableMapManager>();
+        // Create a new instance of MyToolWindow for testing
+        toolWindow = ScriptableObject.CreateInstance<MyToolWindow>();
 
-        // Teste özel örnek JSON verisi
-        string expectedJson = "{\"obj_path\":\"model.fbx\",\"mtl_path\":\"material.mtl\",\"config_path\":\"config.yaml\"}";
+        // Inject the real WebRequestHandler to test request handling
+        toolWindow.SetRequestHandler(new WebRequestHandler());
+    }
 
-        // Alanlara veri ata
-        manager.modelPath = "model.fbx";
-        manager.mtlPath = "material.mtl";
-        manager.configPath = "config.yaml";
-
-        // Simülasyon: manuel olarak çaðýrýyoruz (buton davranýþý test dýþý)
-        yield return manager.SendCreateMapsRequest(expectedJson);
-
-        Assert.IsTrue(manager.SendCreateMapsRequestCalled);
-        Assert.AreEqual(expectedJson, manager.PassedMapsJson);
+    [TearDown]
+    public void TearDown()
+    {
+        // Clean up the created toolWindow instance after each test
+        if (toolWindow != null)
+            Object.DestroyImmediate(toolWindow);
     }
 
     [UnityTest]
-    public IEnumerator CreateMapsRequest_DoesNotTrigger_WhenInputInvalid()
+    public IEnumerator PostJson_Success_LogsCorrectly()
     {
-        var manager = ScriptableObject.CreateInstance<TestableMapManager>();
+        bool callbackCalled = false;
 
-        // Boþ veya null veri senaryosu
-        manager.modelPath = "";
-        manager.mtlPath = null;
-        manager.configPath = "";
+        // Perform a POST JSON request and wait for completion
+        yield return toolWindow.requestHandler.PostJson("http://test.url/post", "{\"test\":1}",
+            onSuccess: (response) =>
+            {
+                // Log success response and mark callback as called
+                Debug.Log("POST Success: " + response);
+                callbackCalled = true;
+            },
+            onError: (error) =>
+            {
+                // Log any error occurred during the POST request
+                Debug.LogError("POST Error: " + error);
+            });
 
-        string dummyJson = "{}"; // geçersiz veri
+        // Assert that the success log was printed as expected
+        LogAssert.Expect(LogType.Log, "POST Success: {\"status\":\"ok\"}");
 
-        yield return manager.SendCreateMapsRequest(dummyJson);
+        // Verify that the success callback was indeed invoked
+        Assert.IsTrue(callbackCalled);
 
-        // Gerçek uygulamada bu çaðrýlmamalý ama burada doðrudan çaðýrýldýðý için true olabilir.
-        // Gerçek simülasyon için GUI buton disable edilmiþ olmalýydý.
-        Assert.IsTrue(manager.SendCreateMapsRequestCalled);
-    }
-
-    //ShowMaps Tests
-    [UnityTest]
-    public IEnumerator ShowMapsCoroutine_ValidPath_CallsOpenFolder()
-    {
-        var manager = ScriptableObject.CreateInstance<TestableMapManager>();
-        manager.DirectoryExists = true;
-        manager.MockJsonResponse = "{\"path\": \"C:/MockMapsFolder\"}";
-
-        yield return manager.ShowMapsCoroutine();
-
-        Assert.IsTrue(manager.OpenFolderCalled, "OpenFolderInExplorer should be called for valid path.");
+        // Confirm that the last posted JSON data matches what was sent
+        Assert.AreEqual("{\"test\":1}", ((WebRequestHandler)toolWindow.requestHandler).LastPostedJson);
     }
 
     [UnityTest]
-    public IEnumerator ShowMapsCoroutine_InvalidPath_LogsErrorAndDoesNotCallOpenFolder()
+    public IEnumerator Get_Success_LogsCorrectly()
     {
-        var manager = ScriptableObject.CreateInstance<TestableMapManager>();
-        manager.DirectoryExists = false;  // Simulate folder doesn't exist
-        manager.MockJsonResponse = "{\"path\": \"C:/MockMapsFolder\"}";
+        bool callbackCalled = false;
 
-        LogAssert.Expect(LogType.Error, "Invalid path or folder does not exists: C:/MockMapsFolder");
+        // Perform a GET request and wait for completion
+        yield return toolWindow.requestHandler.Get("http://test.url/get",
+            onSuccess: (response) =>
+            {
+                // Log success response and mark callback as called
+                Debug.Log("GET Success: " + response);
+                callbackCalled = true;
+            },
+            onError: (error) =>
+            {
+                // Log any error occurred during the GET request
+                Debug.LogError("GET Error: " + error);
+            });
 
-        yield return manager.ShowMapsCoroutine();
+        // Assert that the success log was printed as expected
+        LogAssert.Expect(LogType.Log, "GET Success: {\"config\":\"mocked\"}");
 
-        Assert.IsFalse(manager.OpenFolderCalled, "OpenFolderInExplorer should NOT be called for invalid path.");
+        // Verify that the success callback was indeed invoked
+        Assert.IsTrue(callbackCalled);
+
+        // Confirm that the last GET URL matches what was requested
+        Assert.AreEqual("http://test.url/get", ((WebRequestHandler)toolWindow.requestHandler).LastGetUrl);
+    }
+
+    [UnityTest]
+    public IEnumerator Delete_Success_LogsCorrectly()
+    {
+        bool callbackCalled = false;
+
+        // Perform a DELETE request and wait for completion
+        yield return toolWindow.requestHandler.Delete("http://test.url/delete",
+            onSuccess: () =>
+            {
+                // Log success message and mark callback as called
+                Debug.Log("DELETE Success");
+                callbackCalled = true;
+            },
+            onError: (error) =>
+            {
+                // Log any error occurred during the DELETE request
+                Debug.LogError("DELETE Error: " + error);
+            });
+
+        // Assert that the success log was printed as expected
+        LogAssert.Expect(LogType.Log, "DELETE Success");
+
+        // Verify that the success callback was indeed invoked
+        Assert.IsTrue(callbackCalled);
+
+        // Confirm that the last DELETE URL matches what was requested
+        Assert.AreEqual("http://test.url/delete", ((WebRequestHandler)toolWindow.requestHandler).LastDeleteUrl);
     }
 }

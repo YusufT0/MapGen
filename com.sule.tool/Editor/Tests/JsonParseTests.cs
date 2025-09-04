@@ -1,32 +1,55 @@
-using System.Collections;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
-using System.Text.RegularExpressions;
 
 public class JsonParseTests
 {
-
-    //Geçerli JSON verildiðinde "path" deðeri doðru dönüyor mu?
     [Test]
-    public void ParsePathFromJson_ValidJson_ReturnsPath()
+    public void TestParsePathFromJson()
     {
-        //örnek (dummy) bir JSON verisi
-        string validJson = "{\"path\":\"C:/Users/Test\"}";
+        // Test that a valid JSON string returns the correct path value
+        string json = @"{""path"":""/test/path/file.obj""}";
+        string result = MyToolWindow.ParsePathFromJson(json);
 
-        string result = MyToolWindow.ParsePathFromJson(validJson);  // Test sýrasýnda fonksiyon public static yapýldý
-        Assert.AreEqual("C:/Users/Test", result);
+        Assert.AreEqual("/test/path/file.obj", result);
     }
 
-    //Geçersiz JSON verildiðinde null dönüyor mu? 
     [Test]
-    public void ParsePathFromJson_InvalidJson_ReturnsNull()
+    public void TestParseInvalidJson()
     {
-        LogAssert.Expect(LogType.Error, new Regex("JSON could not be parsed.*"));
+        // Test that invalid JSON logs an error and returns null
+        string invalidJson = @"{invalid:json}";
 
-        string invalidJson = "{invalid json}";
+        LogAssert.Expect(LogType.Error, "JSON could not be parsed: {invalid:json}");
+
         string result = MyToolWindow.ParsePathFromJson(invalidJson);
+
         Assert.IsNull(result);
     }
 
+    [Test]
+    public void TestParseEmptyJson()
+    {
+        // Test that an empty JSON string logs an error and returns null
+        string emptyJson = @"";
+
+        LogAssert.Expect(LogType.Error, "JSON could not be parsed: ");
+
+        string result = MyToolWindow.ParsePathFromJson(emptyJson);
+
+        Assert.IsNull(result);
+    }
+
+    [Test]
+    public void TestParseMalformedJson()
+    {
+        // Test that malformed JSON (missing closing bracket) logs an error and returns null
+        string malformedJson = @"{""path"":""test""";
+
+        LogAssert.Expect(LogType.Error, "JSON could not be parsed: {\"path\":\"test\"");
+
+        string result = MyToolWindow.ParsePathFromJson(malformedJson);
+
+        Assert.IsNull(result);
+    }
 }

@@ -2,108 +2,81 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using System.Collections;
+using UnityEditor;
 
-internal class TestableConfigManager : MyToolWindow
+public class ConfigTests
 {
-    //CreateConfig kýsmý
-    public bool SendCreateConfigsRequestCalled = false;
-    public string PassedJson = null;
+    private MyToolWindow window;
+    private WebRequestHandler mockHandler;
 
-    internal override IEnumerator SendCreateConfigsRequest(string json)
+    [SetUp]
+    public void SetUp()
     {
-        SendCreateConfigsRequestCalled = true;
-        PassedJson = json;
-        yield return null;  // Coroutine simülasyonu
+        // Create a new instance of MyToolWindow for testing
+        window = ScriptableObject.CreateInstance<MyToolWindow>();
+
+        // Create an instance of the mock WebRequestHandler
+        mockHandler = new WebRequestHandler();
+
+        // Inject the mock handler into the window
+        window.SetRequestHandler(mockHandler);
     }
 
-
-    //ShowConfig kýsmý
-    public bool OpenFolderCalled = false;
-    public string OpenedPath = null;
-    public string MockJsonResponse = "{\"path\": \"C:/MockFolder\"}";
-    public bool DirectoryExists = true;
-
-    // ShowConfigsCoroutine override edilir
-    internal override IEnumerator ShowConfigsCoroutine()
+    [TearDown]
+    public void TearDown()
     {
-        string path = ParsePathFromJson(MockJsonResponse);
-
-        if (!string.IsNullOrEmpty(path) && DirectoryExists)
-        {
-            OpenFolderInExplorer(path);
-        }
-        else
-        {
-            UnityEngine.Debug.LogError("Invalid path or folder does not exists: " + path);
-        }
-
-        yield return null;
-    }
-
-    // OpenFolderInExplorer mock versiyonu
-    internal override void OpenFolderInExplorer(string path)
-    {
-        OpenFolderCalled = true;
-        OpenedPath = path;
-    }
-}
-
-public class APITests
-{
-    //CreateConfig Test
-    [UnityTest]
-    public IEnumerator CreateConfigsButton_Triggers_SendCreateConfigsRequest()
-    {
-        var manager = ScriptableObject.CreateInstance<TestableConfigManager>();
-
-        // JSON oluþturuyoruz
-        string expectedJson = "{\"obj_path\":\"model.fbx\",\"mtl_path\":\"material.mtl\",\"config_path\":\"config.yaml\"}";
-
-        // Fieldlara deðer verelim
-        manager.modelPath = "model.fbx";
-        manager.mtlPath = "material.mtl";
-        manager.configPath = "config.yaml";
-
-        // Burada buton týklama simülasyonu yapýlabilir
-        yield return manager.SendCreateConfigsRequest(expectedJson);
-
-        Assert.IsTrue(manager.SendCreateConfigsRequestCalled);
-        Assert.AreEqual(expectedJson, manager.PassedJson);
-    }
-
-    //ShowConfig Tests
-    [UnityTest]
-    public IEnumerator ShowConfigsCoroutine_ValidPath_CallsOpenFolder()
-    {
-        // Arrange
-        var testManager = new TestableConfigManager
-        {
-            DirectoryExists = true
-        };
-
-        // Act
-        yield return testManager.ShowConfigsCoroutine();
-
-        // Assert
-        Assert.IsTrue(testManager.OpenFolderCalled);
-        Assert.AreEqual("C:/MockFolder", testManager.OpenedPath);
-
+        // Destroy the window instance after each test to clean up
+        Object.DestroyImmediate(window);
     }
 
     [UnityTest]
-    public IEnumerator ShowConfigsCoroutine_InvalidPath_DoesNotCallOpenFolder()
+    public IEnumerator TestGetRequestLogsSuccess()
     {
-        var manager = ScriptableObject.CreateInstance<TestableConfigManager>();
+        string testUrl = "http://test.com/getConfig";
 
-        manager.MockJsonResponse = "{\"path\": \"C:/MockFolder\"}";
-        manager.DirectoryExists = false; // klasör yokmuþ gibi simüle ediyoruz
+        // Perform a GET request and wait for the response
+        yield return mockHandler.Get(testUrl,
+            onSuccess: (response) => Debug.Log("GET success: " + response),
+            onError: (error) => Debug.LogError("GET error: " + error));
 
-        // Beklenen hata mesajý
-        LogAssert.Expect(LogType.Error, "Invalid path or folder does not exists: C:/MockFolder");
+        // Verify that the success log with the expected response was printed
+        LogAssert.Expect(LogType.Log, $"GET success: {{\"config\":\"mocked\"}}");
 
-        yield return manager.ShowConfigsCoroutine();
+        // Check that the last GET URL matches the test URL
+        Assert.AreEqual(testUrl, mockHandler.LastGetUrl);
+    }
 
-        // Burada OpenFolderInExplorer çaðrýlmadýðýný test etmek için ek kontrol olabilir
-        Assert.IsFalse(manager.OpenFolderCalled);
+    [UnityTest]
+    public IEnumerator TestPostRequestLogsSuccess()
+    {
+        string testJson = "{\"key\":\"value\"}";
+
+        // Perform a POST JSON request and wait for the response
+        yield return mockHandler.PostJson("http://test.com/post", testJson,
+            onSuccess: (response) => Debug.Log("POST success: " + response),
+            onError: (error) => Debug.LogError("POST error: " + error));
+
+        // Verify that the success log with the expected response was printed
+        LogAssert.Expect(LogType.Log, "POST success: {\"status\":\"ok\"}");
+
+        // Check that the last posted JSON matches the test JSON
+        Assert.AreEqual(testJson, mockHandler.LastPostedJson);
+    }
+
+    [UnityTest]
+    public IEnumerator TestDeleteRequestLogsSuccess()
+    {
+        string testUrl = "http://test.com/delete";
+
+        // Perform a DELETE request and wait for the response
+        yield return mockHandler.Delete(testUrl,
+            onSuccess: () => Debug.Log("DELETE success"),
+            onError: (error) => Debug.LogError("DELETE error: " + error));
+
+        // Verify that the success log was printed
+        LogAssert.Expect(LogType.Log, "DELETE success");
+
+        // Check that the last delete URL matches the test URL
+        Assert.AreEqual(testUrl, mockHandler.LastDeleteUrl);
     }
 }
