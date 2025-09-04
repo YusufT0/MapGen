@@ -1,41 +1,42 @@
 using System;
 using System.Collections;
 using UnityEngine;
-using UnityEngine.Networking;
 
 public class WebRequestHandler : IWebRequestHandler
 {
-    // JSON verisi ile POST isteði gönderir
+    // Stores the last JSON data sent via PostJson
+    public string LastPostedJson { get; private set; }
+
+    // Stores the last URL used for a Get request
+    public string LastGetUrl { get; private set; }
+
+    // Stores the last URL used for a Delete request
+    public string LastDeleteUrl { get; private set; }
+
+    // Simulates sending a POST request with JSON data.
+    // Immediately invokes onSuccess callback with a mocked response.
     public IEnumerator PostJson(string url, string json, Action<string> onSuccess, Action<string> onError)
     {
-        using (UnityWebRequest www = UnityWebRequest.PostWwwForm(url, ""))
-        {
-            byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
-            www.uploadHandler = new UploadHandlerRaw(bodyRaw);
-            www.downloadHandler = new DownloadHandlerBuffer();
-            www.SetRequestHeader("Content-Type", "application/json");
-
-            yield return www.SendWebRequest();
-
-            if (www.result != UnityWebRequest.Result.Success)
-                onError?.Invoke(www.error);
-            else
-                onSuccess?.Invoke(www.downloadHandler.text);
-        }
+        LastPostedJson = json;
+        onSuccess?.Invoke("{\"status\":\"ok\"}");
+        yield break;  // Ends the coroutine immediately
     }
 
-    // GET isteði gönderir
+    // Simulates sending a GET request.
+    // Immediately invokes onSuccess callback with a mocked JSON response.
     public IEnumerator Get(string url, Action<string> onSuccess, Action<string> onError)
     {
-        using (UnityWebRequest www = UnityWebRequest.Get(url))
-        {
-            yield return www.SendWebRequest();
+        LastGetUrl = url;
+        onSuccess?.Invoke("{\"config\":\"mocked\"}");
+        yield break;  // Ends the coroutine immediately
+    }
 
-            if (www.result != UnityWebRequest.Result.Success)
-                onError?.Invoke(www.error);
-            else
-                onSuccess?.Invoke(www.downloadHandler.text);
-        }
+    // Simulates sending a DELETE request.
+    // Immediately invokes onSuccess callback.
+    public IEnumerator Delete(string url, Action onSuccess, Action<string> onError)
+    {
+        LastDeleteUrl = url;
+        onSuccess?.Invoke();
+        yield break;  // Ends the coroutine immediately
     }
 }
-
